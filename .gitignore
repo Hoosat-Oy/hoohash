@@ -41,6 +41,7 @@
 *.su
 *.idb
 *.pdb
+*.go
 
 # Kernel Module Compile Results
 *.mod*
@@ -50,3 +51,5 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+miner.c
