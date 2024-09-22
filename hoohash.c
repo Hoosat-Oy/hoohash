@@ -292,7 +292,7 @@ void HoohashMatrixMultiplication(uint16_t mat[64][64], const uint8_t *hashBytes,
     
     printf("Vector: ");
     for (int i = 0; i < 64; i++) {
-        printf("%d, ", vector[i]);
+        printf("%f, ", vector[i]);
     }
     printf("\n");
 
@@ -439,3 +439,8 @@ void runTestData() {
         }
     }
 }
+
+
+// int main() {
+//     runTestData();
+// }
