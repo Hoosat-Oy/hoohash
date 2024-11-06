@@ -1,7 +1,23 @@
-# Hoohash
+# Hoohash documentation
 
-**Hoohash** is open source proof of work hashing algorithm developed by Hoosat Oy for Hoosat Network. 
+Hoohash is novel proof of work hashing algorithm. The primary functionality includes floating point arithmetic, blake3 hashing, matrix operations, non-linear transformations.
 
+## License
+
+This software is licensed under the GNU General Public License (GPL) Version 3.0 or later. See the full [license](https://www.gnu.org/licenses/) for details.
+
+- **Author**: Toni Lukkaroinen
+- **Company**: Hoosat Oy
+- **Copyright**: 2024 Hoosat Oy
+
+## Overview
+
+Key components of the project include:
+
+- Complex non-linear transformations
+- Hoohash matrix generation and manipulation
+- Proof of work generation for blockchain-like applications
+- Use of BLAKE3 for cryptographic hashing
 
 ## Building the Dynamic Library
 
@@ -40,28 +56,6 @@ This will create the `build/main-test` executable, which can be run as follows:
 ```bash
 ./build/main-test
 ```
-
-# Hoohash documentation
-
-This repository contains the code for Hoosat Oy's project, which implements cryptographic algorithms and complex mathematical transformations. The primary functionality includes hashing, matrix operations, non-linear transformations, and proof-of-work generation using a custom hash function, Hoohash.
-
-## License
-
-This software is licensed under the GNU General Public License (GPL) Version 3.0 or later. See the full [license](https://www.gnu.org/licenses/) for details.
-
-- **Author**: Toni Lukkaroinen
-- **Company**: Hoosat Oy
-- **Copyright**: 2024 Hoosat Oy
-
-## Overview
-
-The project implements a series of cryptographic and mathematical utilities designed for advanced hashing, matrix transformations, and proof-of-work computations. Key components of the project include:
-
-- Conversion between little-endian and big-endian formats
-- Complex non-linear transformations
-- Hoohash matrix generation and manipulation
-- Proof of work generation for blockchain-like applications
-- Use of BLAKE3 for cryptographic hashing
 
 ## Key Functions
 
