@@ -273,6 +273,7 @@ void generateHoohashMatrix(uint8_t *hash, uint16_t mat[64][64]) {
             }
         }
         int rank = computeHoohashRank(mat);
+        printf("%d\n", rank);
         if (rank == 64) {
             return;
         }
@@ -300,7 +301,7 @@ void HoohashMatrixMultiplication(uint16_t mat[64][64], const uint8_t *hashBytes,
     for (int i = 0; i < 64; i++) {
         for (int j = 0; j < 64; j++) {
             float forComplex = (float)mat[i][j] * vector[j];
-            while (forComplex > 16) {
+            while (forComplex > 14) {
                 forComplex = forComplex * 0.1;
             }
             // Transform Matrix values with complex non-linear equations and sum into product.
@@ -437,10 +438,24 @@ void runTestData() {
             generateHoohashMatrix(prePowHash, state.mat);
             miningAlgorithm(&state);
         }
+        printf("-------------------------------------------------------------------------------------\n");
+        uint8_t prePowHash[DOMAIN_HASH_SIZE] = {
+            0x82, 0xb1, 0xd1, 0x7c, 0x5e, 0x22, 0x00, 0xa0, 0x56, 0x59, 0x56, 0xb7, 0x11, 0x48, 0x5a, 0x2c, 0xba, 0x6d, 0xa9, 0x09, 0xe5, 0x88, 0x26, 0x15, 0x82, 0xc2, 0xf4, 0x65, 0xec, 0x2e, 0x3d, 0x3f
+        };
+        size_t size;
+        printf("Test Case :\n");
+        printf("Input prePowHash: %s\n", encodeHex(prePowHash, DOMAIN_HASH_SIZE));
+        memcpy(state.prePowHash, prePowHash, DOMAIN_HASH_SIZE);
+        state.Timestamp = 1727011258677;
+        state.Nonce = 7794931619413402210;
+        printf("Input Timestamp: %lld\n", state.Timestamp);
+        printf("Input Nonce: %llu\n", state.Nonce);
+        generateHoohashMatrix(prePowHash, state.mat);
+        miningAlgorithm(&state);
     }
 }
 
 
-// int main() {
-//     runTestData();
-// }
+int main() {
+    runTestData();
+}
