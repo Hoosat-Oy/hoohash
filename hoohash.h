@@ -23,8 +23,14 @@
 #ifndef HOOHASH_H
 #define HOOHASH_H
 
+#include <fenv.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <endian.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <math.h>
+#include <blake3.h>
 #include "bigint.h"
 
 // Define the size of the hash domain

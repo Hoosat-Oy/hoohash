@@ -23,7 +23,9 @@
 #ifndef BIGINT_H
 #define BIGINT_H
 
-#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // Define the BigInt structure
 typedef struct {
