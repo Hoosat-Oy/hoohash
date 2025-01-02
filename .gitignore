@@ -57,3 +57,4 @@ miner.c
 miner
 hoohash
 hoohash-test
+build/
