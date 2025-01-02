@@ -32,7 +32,10 @@
 #include "bigint.h"
 #include "hoohash.h"
 
-#define COMPLEX_INPUT_CLAMP 32
+// These matter to precision.
+#define COMPLEX_OUTPUT_CLAMP 1000000000
+#define COMPLEX_INPUT_CLAMP_START_POINT 64
+#define PRODUCT_VALUE_SCALE_MULTIPLIER 0.00000001
 
 void show_fe_current_rounding_direction(void)
 {
@@ -307,7 +310,7 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
 {
     float vector[64] = {0};
     float product[64] = {0};
-    uint64_t res[32] = {0};
+    uint32_t res[32] = {0};
 
     // Populate the vector with floating-point values
     for (int i = 0; i < 32; i++)
@@ -315,61 +318,52 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
         vector[2 * i] = (float)(hashBytes[i] >> 4);
         vector[2 * i + 1] = (float)(hashBytes[i] & 0x0F);
     }
-    printf("Matrix 0: ");
-    for (int i = 0; i < 64; i++)
-    {
-        printf("%f, ", mat[0][i]);
-    }
-    printf("\n");
-    printf("Vector: ");
-    for (int i = 0; i < 64; i++)
-    {
-        printf("%f, ", vector[i]);
-    }
-    printf("\n");
+    // printf("Matrix[0]: ");
+    // for (int i = 0; i < 64; i++)
+    // {
+    //     printf("%f, ", mat[0][i]);
+    // }
+    // printf("\n");
+    // printf("Vector: ");
+    // for (int i = 0; i < 64; i++)
+    // {
+    //     printf("%f, ", vector[i]);
+    // }
+    // printf("\n");
 
     // Matrix-vector multiplication with floating point operations
 
-    printf("For Complex: ");
+    // printf("For Complex: ");
     for (int i = 0; i < 64; i++)
     {
         for (int j = 0; j < 64; j++)
         {
             float forComplex = (float)mat[i][j] * vector[j];
-            while (forComplex >= COMPLEX_INPUT_CLAMP)
+            float complex;
+            do
             {
+                complex = ComplexNonLinear(forComplex);
                 forComplex = forComplex * 0.1;
-            }
-            if (j < 10 && i < 1)
-            {
-
-                printf("[%i] %f\r\n", j, forComplex);
-            }
-            //  Transform Matrix values with complex non-linear equations and sum into product.
-            product[i] += ComplexNonLinear(forComplex);
+            } while (isinf(complex) || complex >= COMPLEX_OUTPUT_CLAMP);
+            // printf("For Complex %f\n", forComplex * 10);
+            product[i] += complex;
         }
     }
-    printf("\n");
-    printf("Product: ");
+    // printf("\n");
+    // printf("Product: ");
+    // for (int i = 0; i < 64; i++)
+    // {
+    //     printf("%f, ", product[i]);
+    // }
+    // printf("\n");
+
+    // XOR the hash with product values, before using as input for final blake3 pass.
+    printf("Final pass input: ");
     for (int i = 0; i < 64; i++)
     {
-        printf("%f, ", product[i]);
-    }
-    printf("\n");
-
-    // Convert product back to uint16 and then to byte array
-    // printf("Hi/Low: ");
-    for (int i = 0; i < 32; i++)
-    {
-        uint64_t high = product[2 * i] /* * 0.00000001*/;
-        uint64_t low = product[2 * i + 1] /* * 0.00000001*/;
-        res[i] = hashBytes[i] ^ high ^ low;
-    }
-    // printf("\n");
-    printf("Res: ");
-    for (int i = 0; i < 32; i++)
-    {
-        printf("%d,", res[i]);
+        uint8_t scaled_value = product[i] * PRODUCT_VALUE_SCALE_MULTIPLIER;
+        res[i] = hashBytes[i] ^ scaled_value;
+        printf("%d, ", res[i]);
     }
     printf("\n");
 
