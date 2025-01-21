@@ -32,11 +32,6 @@
 #include "bigint.h"
 #include "hoohash.h"
 
-// These matter to precision.
-#define COMPLEX_OUTPUT_CLAMP 1000000000
-#define COMPLEX_INPUT_CLAMP_START_POINT 64
-#define PRODUCT_VALUE_SCALE_MULTIPLIER 0.00000001
-
 void show_fe_current_rounding_direction(void)
 {
     printf("current rounding direction:  ");
@@ -288,6 +283,24 @@ float ComplexNonLinear(float x)
     }
 }
 
+// These matter to precision.
+#define COMPLEX_OUTPUT_CLAMP 100000
+#define COMPLEX_INPUT_CLAMP_START_POINT 64
+#define PRODUCT_VALUE_SCALE_MULTIPLIER 0.00001
+
+float ForComplex(float forComplex)
+{
+    float complex;
+    complex = ComplexNonLinear(forComplex);
+    while (complex >= COMPLEX_OUTPUT_CLAMP)
+    {
+
+        forComplex = forComplex * 0.1;
+        complex = ComplexNonLinear(forComplex);
+    }
+    return complex;
+}
+
 void generateHoohashMatrix(uint8_t *hash, float mat[64][64])
 {
     xoshiro_state state = xoshiro_init(hash);
@@ -301,16 +314,21 @@ void generateHoohashMatrix(uint8_t *hash, float mat[64][64])
             uint32_t lower_4_bytes = val & 0xFFFFFFFF;
             matrix_val = (float)(lower_4_bytes) / (float)UINT32_MAX * (normalize * 2) - normalize;
             // printf("mat[%d][%d]: %f\n", i, j, matrix_val);
-            mat[i][j] = abs(matrix_val);
+            mat[i][j] = matrix_val;
         }
     }
+    printf("Matrix: [");
+    for (int i = 0; i < 64; i++)
+    {
+        printf("%f ", mat[0][i]);
+    }
+    printf("]\n");
 }
 
 void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output)
 {
     float vector[64] = {0};
     float product[64] = {0};
-    uint32_t res[32] = {0};
 
     // Populate the vector with floating-point values
     for (int i = 0; i < 32; i++)
@@ -324,12 +342,12 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     //     printf("%f, ", mat[0][i]);
     // }
     // printf("\n");
-    // printf("Vector: ");
-    // for (int i = 0; i < 64; i++)
-    // {
-    //     printf("%f, ", vector[i]);
-    // }
-    // printf("\n");
+    printf("Vector: [");
+    for (int i = 0; i < 64; i++)
+    {
+        printf("%f ", vector[i]);
+    }
+    printf("]\n");
 
     // Matrix-vector multiplication with floating point operations
 
@@ -338,35 +356,75 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     {
         for (int j = 0; j < 64; j++)
         {
-            float forComplex = (float)mat[i][j] * vector[j];
-            float complex;
-            do
+            switch ((i * j) % 20)
             {
-                complex = ComplexNonLinear(forComplex);
-                forComplex = forComplex * 0.1;
-            } while (isinf(complex) || complex >= COMPLEX_OUTPUT_CLAMP);
-            // printf("For Complex %f\n", forComplex * 10);
-            product[i] += complex;
+            case 0: // Complex non-linear function
+                product[i] += ForComplex(mat[i][j] * vector[j]);
+                break;
+            case 1: // Division
+            case 5:
+            case 9:
+            case 13:
+            case 17:
+                if (vector[j] != 0)
+                {
+                    product[i] += mat[i][j] / vector[j];
+                }
+                else
+                {
+                    product[i] += mat[i][j] / 1.0f; // Safeguard against divizion by zero.
+                }
+                break;
+            case 2: // Multiplication
+            case 6:
+            case 10:
+            case 14:
+            case 18:
+                product[i] += mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER;
+                break;
+            case 3: // Addition
+            case 7:
+            case 11:
+            case 15:
+            case 19:
+                product[i] += mat[i][j] + vector[j];
+                break;
+            case 4: // Subtraction
+            case 8:
+            case 12:
+            case 16:
+                product[i] += mat[i][j] - vector[j];
+                break;
+            default: // Fallback multiplication
+                product[i] += mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER;
+                break;
+            }
         }
     }
-    // printf("\n");
-    // printf("Product: ");
-    // for (int i = 0; i < 64; i++)
-    // {
-    //     printf("%f, ", product[i]);
-    // }
-    // printf("\n");
-
-    // XOR the hash with product values, before using as input for final blake3 pass.
-    printf("Final pass input: ");
+    printf("\n");
+    printf("Product: [");
     for (int i = 0; i < 64; i++)
     {
-        uint8_t scaled_value = product[i] * PRODUCT_VALUE_SCALE_MULTIPLIER;
-        res[i] = hashBytes[i] ^ scaled_value;
-        printf("%d, ", res[i]);
+        printf("%f, ", product[i]);
     }
-    printf("\n");
+    printf("]\n");
 
+    // XOR the hash with product values, before using as input for final blake3 pass.
+    printf("Final pass: [");
+    uint8_t res[32] = {0};
+    // combine and scale product values
+    uint8_t scaledValues[32] = {0};
+    for (int i = 0; i < 64; i += 2)
+    {
+        scaledValues[i / 2] = (uint8_t)((product[i] + product[i + 1]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
+    }
+    // Xor with prehash
+    for (int i = 0; i < 32; i++)
+    {
+        res[i] = hashBytes[i] ^ scaledValues[i];
+        printf("%d ", res[i]);
+    }
+    printf("]\n");
     // Hash again using BLAKE3
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
