@@ -53,7 +53,7 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-miner.c
+main_test
 miner
 hoohash
 hoohash-test

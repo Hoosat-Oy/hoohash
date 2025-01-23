@@ -39,6 +39,14 @@ test: $(BUILD_DIR)/main_test.o $(OBJS) | $(BUILD_DIR)
 $(BUILD_DIR)/main_test.o: main_test.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c main_test.c -o $@
 
+miner:CFLAGS += -DTEST
+miner: $(BUILD_DIR)/miner.o $(OBJS) | $(BUILD_DIR)
+	$(CC) -o $(BUILD_DIR)/miner $(OBJS) $(BUILD_DIR)/miner.o -lm -lblake3 -lcjson
+
+# Compile miner.c to object file in the build directory
+$(BUILD_DIR)/miner.o: miner.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c miner.c -o $@
+
 # Clean rule to remove generated files in the build directory
 clean:
 	rm -rf $(BUILD_DIR)
