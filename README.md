@@ -1,4 +1,4 @@
-# Hoohash documentation
+# Hoohash
 
 Hoohash is novel proof of work hashing algorithm. The primary functionality includes floating point arithmetic, blake3 hashing, matrix operations, non-linear transformations.
 
