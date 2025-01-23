@@ -64,7 +64,8 @@ void runTestData()
             // printf("Input Timestamp: %lld\n", state.Timestamp);
             // printf("Input Nonce: %llu\n", state.Nonce);
             generateHoohashMatrix(prePowHash, state.mat);
-            miningAlgorithm(&state);
+            uint8_t result[DOMAIN_HASH_SIZE];
+            miningAlgorithm(&state, result);
         }
         for (int i = 0; i < 5; i++)
         {
@@ -79,7 +80,8 @@ void runTestData()
             printf("Input Timestamp: %lld\n", state.Timestamp);
             printf("Input Nonce: %llu\n", state.Nonce);
             generateHoohashMatrix(prePowHash, state.mat);
-            miningAlgorithm(&state);
+            uint8_t result[DOMAIN_HASH_SIZE];
+            miningAlgorithm(&state, result);
         }
         for (int i = 0; i < 5; i++)
         {
@@ -94,7 +96,8 @@ void runTestData()
             printf("Input Timestamp: %lld\n", state.Timestamp);
             printf("Input Nonce: %llu\n", state.Nonce);
             generateHoohashMatrix(prePowHash, state.mat);
-            miningAlgorithm(&state);
+            uint8_t result[DOMAIN_HASH_SIZE];
+            miningAlgorithm(&state, result);
         }
         printf("-------------------------------------------------------------------------------------\n");
         uint8_t prePowHash[DOMAIN_HASH_SIZE] = {
@@ -107,7 +110,8 @@ void runTestData()
         printf("Input Timestamp: %lld\n", state.Timestamp);
         printf("Input Nonce: %llu\n", state.Nonce);
         generateHoohashMatrix(prePowHash, state.mat);
-        miningAlgorithm(&state);
+        uint8_t result[DOMAIN_HASH_SIZE];
+        miningAlgorithm(&state, result);
     }
 }
 
