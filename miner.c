@@ -71,6 +71,7 @@ typedef struct
     volatile int running; // Flag to stop mining
     pthread_mutex_t mutex;
     pthread_cond_t cond;
+    int indice;
 } MiningJob;
 
 typedef struct
@@ -237,11 +238,10 @@ void *hashrate_display_thread(void *arg)
 
 void *mining_thread_function(void *arg)
 {
-    int thread_index = *(int *)arg; // Thread-specific index
-    MiningJob *job = malloc(sizeof(MiningJob));
+    MiningJob *job = (MiningJob *)arg;
     if (!job)
     {
-        perror("Failed to allocate memory for thread job");
+        perror("Received null job argument");
         return NULL;
     }
     memcpy(job, (MiningJob *)arg, sizeof(MiningJob));
@@ -250,8 +250,8 @@ void *mining_thread_function(void *arg)
     memcpy(state.prePowHash, job->header, DOMAIN_HASH_SIZE);
     state.Timestamp = (uint64_t)job->timestamp;
 
-    uint64_t nonce = thread_index; // Start nonce unique to the thread
-    uint64_t step = threads;       // Increment step equal to the total number of threads
+    uint64_t nonce = job->indice; // Start nonce unique to the thread
+    uint64_t step = threads;      // Increment step equal to the total number of threads
 
     generateHoohashMatrix(state.prePowHash, state.mat);
 
@@ -288,7 +288,6 @@ void *mining_thread_function(void *arg)
         // pthread_mutex_unlock(&hashrate_mutex);
     }
 
-    free(job);
     return NULL;
 }
 
@@ -335,8 +334,7 @@ void start_mining_loop(int sockfd, char *job, uint8_t *header, double timestamp)
 
     // Allocate memory for thread handles and indices
     mining_threads = malloc(threads * sizeof(pthread_t));
-    int *thread_indices = malloc(threads * sizeof(int));
-    if (!mining_threads || !thread_indices)
+    if (!mining_threads)
     {
         perror("Failed to allocate memory for threads or indices");
         current_job.running = 0;
@@ -346,8 +344,8 @@ void start_mining_loop(int sockfd, char *job, uint8_t *header, double timestamp)
     // Create mining threads
     for (i = 0; i < threads; i++)
     {
-        thread_indices[i] = i; // Assign unique thread index
-        if (pthread_create(&mining_threads[i], NULL, mining_thread_function, &thread_indices[i]) != 0)
+        current_job.indice = i;
+        if (pthread_create(&mining_threads[i], NULL, mining_thread_function, &current_job) != 0)
         {
             perror("Thread creation failed");
             current_job.running = 0;
@@ -364,12 +362,7 @@ void start_mining_loop(int sockfd, char *job, uint8_t *header, double timestamp)
             pthread_join(mining_threads[j], NULL);
         }
         free(mining_threads);
-        free(thread_indices);
         mining_threads = NULL;
-    }
-    else
-    {
-        free(thread_indices); // Indices are no longer needed after thread creation
     }
 }
 
