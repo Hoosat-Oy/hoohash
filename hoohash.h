@@ -61,9 +61,6 @@ typedef struct
     uint64_t s3;
 } xoshiro_state;
 
-// Function to convert a byte array to BigInt
-BigInt toBig(uint8_t *hash, size_t hash_len);
-
 // Function to encode a byte array into a hexadecimal string
 char *encodeHex(const uint8_t *bytes, size_t length);
 

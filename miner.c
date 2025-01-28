@@ -8,6 +8,9 @@
 #include <inttypes.h>
 #include <sys/select.h>
 #include "hoohash.h"
+#include <math.h>
+#include <stdint.h>
+#include <signal.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -31,6 +34,8 @@ int get_cpu_threads()
 }
 #else
 #include <stdio.h>
+
+int endianness = 0;
 
 int get_cpu_threads()
 {
@@ -82,7 +87,7 @@ typedef struct
 
 MiningJob current_job;
 pthread_t *mining_threads = NULL;
-int threads = 10;
+int threads = 12;
 
 // Add this to track the number of nonces per second
 volatile uint64_t nonces_processed = 0;
@@ -91,32 +96,142 @@ volatile uint64_t cpu_rejected = 0;
 volatile uint64_t cpu_blocks = 0;
 pthread_mutex_t hashrate_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Utility functions for difficulty and target conversion
-uint64_t div_ceil_128(uint64_t high, uint64_t low, uint64_t divisor)
-{
-    if (high == 0)
-        return low / divisor;
+// Helper macros to get the mantissa and exponent of a double
+const uint64_t DIFFICULTY_1_TARGET_MANTISSA = 0xffffULL;
+const int16_t DIFFICULTY_1_TARGET_EXPONENT = 208;
 
-    long double dividend = (long double)high * UINT64_MAX + low;
-    return (uint64_t)(dividend / divisor);
+void divide_256_by_64(uint8_t *target, uint64_t divisor)
+{
+    uint64_t carry = 0;
+
+    // We will use 8 uint64_t values to represent the 256-bit number
+    uint64_t value[4];
+
+    // Convert the target (256-bit) from little-endian format to a uint64_t array
+    for (int i = 0; i < 4; i++)
+    {
+        value[i] = 0;
+        for (int j = 0; j < 8; j++)
+        {
+            value[i] |= (uint64_t)target[i * 8 + j] << (8 * j);
+        }
+    }
+
+    // Perform the division for 256-bit value divided by the divisor (difficulty)
+    for (int i = 0; i < 4; i++)
+    {
+        value[i] = value[i] / divisor;
+    }
+
+    // Convert the result back to little-endian and store it in the target
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 8; j++)
+        {
+            target[i * 8 + j] = (uint8_t)(value[i] >> (8 * j) & 0xFF);
+        }
+    }
 }
 
-uint64_t target_from_difficulty(uint64_t difficulty)
+uint8_t *target_from_difficulty(double difficulty)
 {
-    uint64_t max_target_high = 0xFFFF000000000000ULL;
-    uint64_t max_target_low = 0x0000000000000000ULL;
-    return div_ceil_128(max_target_high, max_target_low, difficulty);
+    // Allocate memory for 32 bytes (256-bit target)
+    uint8_t *target = (uint8_t *)malloc(DOMAIN_HASH_SIZE);
+    if (target == NULL)
+    {
+        fprintf(stderr, "Memory allocation failed\n");
+        return NULL;
+    }
+    if (difficulty <= 0)
+    {
+        fprintf(stderr, "Error: Difficulty must be greater than 0.\n");
+        return NULL;
+    }
+
+    // Reciprocal of difficulty
+    double recip_difficulty = 1.0 / difficulty;
+
+    // Decode mantissa and exponent from reciprocal difficulty
+    int exponent;
+    double mantissa = frexp(recip_difficulty, &exponent);
+
+    // Convert mantissa to an integer (scale it up to 53 bits of precision for double)
+    uint64_t mantissa_int = (uint64_t)(mantissa * (1ULL << 53));
+
+    // Adjust the exponent to account for DIFFICULTY_1_TARGET
+    int64_t new_exponent = DIFFICULTY_1_TARGET_EXPONENT + exponent - 53;
+
+    // Multiply mantissa by DIFFICULTY_1_TARGET's mantissa
+    uint64_t new_mantissa = mantissa_int * DIFFICULTY_1_TARGET_MANTISSA;
+
+    // Clear the target buffer
+    memset(target, 0, DOMAIN_HASH_SIZE);
+
+    // Calculate start position and bit remainder
+    int start = new_exponent / 8;     // Byte position
+    int remainder = new_exponent % 8; // Bit offset within the byte
+
+    // Check bounds
+    if (start < 0 || start >= DOMAIN_HASH_SIZE)
+    {
+        fprintf(stderr, "Error: Target is out of bounds.\n");
+        return NULL;
+    }
+
+    // Insert the mantissa into the target buffer
+    uint64_t shifted_mantissa = new_mantissa << remainder; // Align the mantissa to the target buffer
+    for (int i = 0; i < 8 && start + i < DOMAIN_HASH_SIZE; i++)
+    {
+        target[start + i] = (shifted_mantissa >> (56 - 8 * i)) & 0xff;
+    }
+
+    // Handle carry into the next byte if necessary
+    if (start + 8 < DOMAIN_HASH_SIZE && remainder > 0)
+    {
+        target[start + 8] = (new_mantissa >> (64 - remainder)) & 0xff;
+    }
+    printf("target:\t0x");
+    for (int i = 0; i < 32; i++)
+    {
+        printf("%02x", target[i]);
+    }
+    printf("\n");
+    return target;
 }
 
-uint64_t difficulty_from_target(uint64_t target)
+double difficulty_from_target(uint8_t *target)
 {
-    uint64_t max_target_high = 0xFFFF000000000000ULL;
-    uint64_t max_target_low = 0x0000000000000000ULL;
-    return div_ceil_128(max_target_high, max_target_low, target);
+    uint64_t target_value = 0;
+
+    // Convert the target (byte array) back to a 64-bit integer
+    for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
+    {
+        target_value = (target_value << 8) | target[i];
+    }
+
+    // Calculate difficulty (inverse of the scaling we applied earlier)
+    double difficulty = (double)0xFFFFFFFFFFFFFFFF / target_value;
+    return difficulty;
 }
 
-uint64_t diff = 0;
-uint64_t target = 0;
+int compare_target(uint8_t *hash, uint8_t *target)
+{
+    // Compare byte by byte in a way that simulates numerical comparison
+    for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
+    {
+        if (hash[i] < target[i])
+        {
+            return -1; // Hash is numerically smaller than the target, valid hash
+        }
+        else if (hash[i] > target[i])
+        {
+            return 1; // Hash is numerically larger than the target, invalid hash
+        }
+    }
+    return 0; // Hash is equal to the target
+}
+
+uint8_t *target;
 
 void smallJobHeader(const uint64_t *ids, uint8_t *headerData)
 {
@@ -146,7 +261,63 @@ void cleanup_mining_job()
         free(current_job.job);
 }
 
-void submit_mining_solution(int sockfd, const char *worker, const char *job_id, uint64_t nonce, uint8_t *hash)
+int handle_mining_submission_response(const char *response)
+{
+    int ret = 0;
+    cJSON *json = cJSON_Parse(response);
+    if (!json)
+    {
+        fprintf(stderr, "Failed to parse JSON response\n");
+        return -1;
+    }
+
+    cJSON *error = cJSON_GetObjectItemCaseSensitive(json, "error");
+    cJSON *id = cJSON_GetObjectItemCaseSensitive(json, "id");
+    if (cJSON_IsNull(error) || error == NULL)
+    {
+        // Successful submission
+        printf("Mining solution accepted\n");
+        cpu_blocks++;
+    }
+    else
+    {
+        // Error occurred
+        cJSON *error_code = cJSON_GetArrayItem(error, 0);
+        cJSON *error_message = cJSON_GetArrayItem(error, 1);
+        printf("%s", cJSON_Print(error_code));
+        printf("%s", cJSON_Print(error_message));
+        if (error_code && error_message)
+        {
+            switch (error_code->valueint)
+            {
+            case 20:
+                printf("Incorrect proof of work hash. Retrying solution.\n");
+                cpu_rejected++;
+                ret = -1;
+                break;
+            case 21:
+                printf("Stale job. Requesting new mining job.\n");
+                cpu_rejected++;
+                ret = -1;
+                break;
+            case 22:
+                printf("Duplicate share detected.\n");
+                cpu_rejected++;
+                ret = -1;
+                break;
+            default:
+                printf("Unknown submission error: %d - %s\n",
+                       error_code->valueint,
+                       error_message->valuestring);
+                ret = -1;
+            }
+        }
+    }
+    cJSON_Delete(json);
+    return ret;
+}
+
+int submit_mining_solution(int sockfd, const char *worker, const char *job_id, uint64_t nonce, uint8_t *hash)
 {
     // Create the JSON object
     cJSON *submit_request = cJSON_CreateObject();
@@ -180,7 +351,7 @@ void submit_mining_solution(int sockfd, const char *worker, const char *job_id, 
     {
         fprintf(stderr, "Failed to create mining.submit request\n");
         cJSON_Delete(submit_request);
-        return;
+        return -1;
     }
 
     // Append newline to the JSON message
@@ -191,16 +362,24 @@ void submit_mining_solution(int sockfd, const char *worker, const char *job_id, 
     if (send_result < 0)
     {
         perror("Failed to send mining.submit request");
-    }
-    else
-    {
-        cpu_blocks += 1;
-        printf("Mining.submit message sent successfully\n");
+        return -1;
     }
 
     // Clean up
     free(submit_msg);
     cJSON_Delete(submit_request);
+
+    char response_buffer[1024];
+    int bytes_received = recv(sockfd, response_buffer, sizeof(response_buffer) - 1, 0);
+    if (bytes_received > 0)
+    {
+        response_buffer[bytes_received] = '\0';
+        return handle_mining_submission_response(response_buffer);
+    }
+    else
+    {
+        return -1;
+    }
 }
 
 void *hashrate_display_thread(void *arg)
@@ -222,12 +401,12 @@ void *hashrate_display_thread(void *arg)
         strftime(time_str, sizeof(time_str), "%H:%M:%S", &tm_info);
 
         // Print output in the specified format
-        printf("[%-6s] =======================================================================\n", time_str);
-        printf("[%-6s] [hoohash]             |       accepted|       rejected|         blocks| \n", time_str);
-        printf("[%-6s] CPU0 : %.2f KH/s      |\t\t%d|\t\t%d|\t\t%d|\n",
-               time_str, hashrate, cpu_accepted, cpu_rejected, cpu_blocks);
-        printf("[%-6s] Total: %.2f KH/s      |\t\t%d|\t\t%d|\t\t%d|\n", time_str, hashrate, cpu_accepted, cpu_rejected, cpu_blocks);
-        printf("[%-6s] =======================================================================\n", time_str);
+        printf("[%-6s] =======================================================\n", time_str);
+        printf("[%-6s] [hoohash]\t\t|\t accepted|       rejected| \n", time_str);
+        printf("[%-6s] CPU0 : %.2f KH/s\t|\t\t%d|\t\t%d|\n",
+               time_str, hashrate, cpu_blocks, cpu_rejected);
+        printf("[%-6s] Total: %.2f KH/s\t|\t\t%d|\t\t%d|\n", time_str, hashrate, cpu_accepted, cpu_rejected, cpu_blocks);
+        printf("[%-6s] =======================================================\n", time_str);
 
         // Reset nonces processed counter for the next iteration
         nonces_processed = 0;
@@ -261,24 +440,30 @@ void *mining_thread_function(void *arg)
         uint8_t result[DOMAIN_HASH_SIZE];
         miningAlgorithm(&state, result);
 
-        uint64_t hash_value;
-        memcpy(&hash_value, result, sizeof(hash_value));
-
-        if (hash_value <= target)
+        if (compare_target(result, target) < 0)
         {
-            cpu_accepted += 1;
-            printf("Solution found!\n");
-            printf("Job ID: %s\n", job->job);
-            printf("Nonce: %" PRIu64 "\n", nonce);
-            printf("Hash: ");
-            for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
+            printf("hash:\t0x");
+            for (int i = 0; i < 32; i++)
             {
                 printf("%02x", result[i]);
             }
             printf("\n");
-
-            submit_mining_solution(job->sockfd, "worker", job->job, nonce, result);
-            break;
+            printf("target:\t0x");
+            for (int i = 0; i < 32; i++)
+            {
+                printf("%02x", target[i]);
+            }
+            printf("\n");
+            if (submit_mining_solution(job->sockfd, "worker", job->job, nonce, result) == 0)
+            {
+                printf("Mining solution accepted\n");
+                break;
+            }
+            else
+            {
+                printf("Failed to submit valid solution\n");
+            }
+            sleep(1);
         }
 
         nonce += step; // Increment nonce by the step size
@@ -379,11 +564,8 @@ void process_stratum_message(int sockfd, cJSON *message)
                 cJSON *difficulty = cJSON_GetArrayItem(params, 0);
                 if (cJSON_IsNumber(difficulty))
                 {
-                    diff = (uint64_t)(difficulty->valuedouble * 100000000); // Convert to fixed point
+                    double diff = (difficulty->valuedouble);
                     target = target_from_difficulty(diff);
-
-                    printf("New difficulty set: %f\n", difficulty->valuedouble);
-                    printf("Corresponding target: 0x%016" PRIX64 "\n", target);
                 }
             }
         }
@@ -701,11 +883,29 @@ void parse_args(int argc, char **argv, const char **pool_ip, int *pool_port, con
     }
 }
 
+int check_endianness()
+{
+    unsigned int x = 1;
+    char *c = (char *)&x;
+    // If the first byte is 1, it's little-endian
+    if (*c == 1)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 int main(int argc, char **argv)
 {
+    signal(SIGPIPE, SIG_IGN);
+    endianness = check_endianness();
+    printf("Endianess: %s\n", endianness == 1 ? "Little-endian" : "Big-endian");
     const char *pool_ip = "127.0.0.1";
     int pool_port = 5555;
-    const char *username = "hoosattest:qrak3pvyxa7cj0y46zk47epjjal5zydspudma0ges2ul5z2257z7wffwasvsr";
+    const char *username = "    ";
     const char *password = "x";
     int threads = get_cpu_threads(); // Declare as int, not int *
 

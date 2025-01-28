@@ -54,64 +54,6 @@ void show_fe_current_rounding_direction(void)
     printf("\n");
 }
 
-uint8_t *to_little_endian_uint8_t_pointer(const uint8_t *value, size_t size)
-{
-    // Allocate memory for the result
-    uint8_t *little_endian_value = (uint8_t *)malloc(size);
-    if (little_endian_value == NULL)
-    {
-        return NULL; // Memory allocation failed
-    }
-
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-    // If the system is already little-endian, copy the value as is
-    memcpy(little_endian_value, value, size);
-#else
-    // If the system is big-endian, we need to reverse the byte order
-    for (size_t i = 0; i < size; i++)
-    {
-        little_endian_value[i] = value[size - 1 - i];
-    }
-#endif
-
-    return little_endian_value;
-}
-
-uint8_t *to_big_endian_uint8_t_pointer(const uint8_t *value, size_t size)
-{
-    // Allocate memory for the result
-    uint8_t *big_endian_value = (uint8_t *)malloc(size);
-    if (big_endian_value == NULL)
-    {
-        return NULL; // Memory allocation failed
-    }
-
-#if __BYTE_ORDER == __BIG_ENDIAN
-    // If the system is already big-endian, copy the value as is
-    memcpy(big_endian_value, value, size);
-#else
-    // If the system is little-endian, we need to reverse the byte order
-    for (size_t i = 0; i < size; i++)
-    {
-        big_endian_value[i] = value[size - 1 - i];
-    }
-#endif
-
-    return big_endian_value;
-}
-
-// Function to convert a byte array to BigInt
-BigInt toBig(uint8_t *hash, size_t hash_len)
-{
-    BigInt bigint;
-    BigInt_init(&bigint, hash_len);
-    printf("Before Big endian: %s\n", hash);
-    hash = to_big_endian_uint8_t_pointer(hash, hash_len);
-    printf("Big endian: %s\n", hash);
-    memcpy(bigint.digits, hash, hash_len);
-    return bigint;
-}
-
 char *encodeHex(const uint8_t *bytes, size_t length)
 {
     // Each byte is represented by 2 hex characters, plus 1 for the null terminator
