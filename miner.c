@@ -11,6 +11,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <signal.h>
+#include <gmp.h> // Added GMP header
 
 #ifdef _WIN32
 #include <windows.h>
@@ -19,7 +20,7 @@ int get_cpu_threads()
 {
     SYSTEM_INFO sysInfo;
     GetSystemInfo(&sysInfo);
-    return sysInfo.dwNumberOfProcessors; // Number of logical processors
+    return sysInfo.dwNumberOfProcessors;
 }
 #elif __APPLE__
 #include <sys/types.h>
@@ -29,7 +30,7 @@ int get_cpu_threads()
 {
     int ncpu;
     size_t len = sizeof(ncpu);
-    sysctlbyname("hw.logicalcpu", &ncpu, &len, NULL, 0); // Get the number of logical CPUs
+    sysctlbyname("hw.logicalcpu", &ncpu, &len, NULL, 0);
     return ncpu;
 }
 #else
@@ -60,9 +61,8 @@ int get_cpu_threads()
 }
 #endif
 
-#define BUFFER_SIZE 4096
-#define HASH_SIZE 32 // SHA256 produces a 32-byte hash
-
+#define BUFFER_SIZE 8192
+#define HASH_SIZE 32
 #ifndef DOMAIN_HASH_SIZE
 #define DOMAIN_HASH_SIZE 32
 #endif
@@ -73,9 +73,7 @@ typedef struct
     char *job;
     uint8_t header[DOMAIN_HASH_SIZE];
     double timestamp;
-    volatile int running; // Flag to stop mining
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
+    volatile int running;
     int indice;
 } MiningJob;
 
@@ -89,146 +87,161 @@ MiningJob current_job;
 pthread_t *mining_threads = NULL;
 int threads = 12;
 
-// Add this to track the number of nonces per second
 volatile uint64_t nonces_processed = 0;
 volatile uint64_t cpu_accepted = 0;
 volatile uint64_t cpu_rejected = 0;
 volatile uint64_t cpu_blocks = 0;
 pthread_mutex_t hashrate_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Helper macros to get the mantissa and exponent of a double
-const uint64_t DIFFICULTY_1_TARGET_MANTISSA = 0xffffULL;
-const int16_t DIFFICULTY_1_TARGET_EXPONENT = 208;
-
-void divide_256_by_64(uint8_t *target, uint64_t divisor)
-{
-    uint64_t carry = 0;
-
-    // We will use 8 uint64_t values to represent the 256-bit number
-    uint64_t value[4];
-
-    // Convert the target (256-bit) from little-endian format to a uint64_t array
-    for (int i = 0; i < 4; i++)
-    {
-        value[i] = 0;
-        for (int j = 0; j < 8; j++)
-        {
-            value[i] |= (uint64_t)target[i * 8 + j] << (8 * j);
-        }
-    }
-
-    // Perform the division for 256-bit value divided by the divisor (difficulty)
-    for (int i = 0; i < 4; i++)
-    {
-        value[i] = value[i] / divisor;
-    }
-
-    // Convert the result back to little-endian and store it in the target
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 0; j < 8; j++)
-        {
-            target[i * 8 + j] = (uint8_t)(value[i] >> (8 * j) & 0xFF);
-        }
-    }
-}
-
-uint8_t *target_from_difficulty(double difficulty)
-{
-    // Allocate memory for 32 bytes (256-bit target)
-    uint8_t *target = (uint8_t *)malloc(DOMAIN_HASH_SIZE);
-    if (target == NULL)
-    {
-        fprintf(stderr, "Memory allocation failed\n");
-        return NULL;
-    }
-    if (difficulty <= 0)
-    {
-        fprintf(stderr, "Error: Difficulty must be greater than 0.\n");
-        return NULL;
-    }
-
-    // Reciprocal of difficulty
-    double recip_difficulty = 1.0 / difficulty;
-
-    // Decode mantissa and exponent from reciprocal difficulty
-    int exponent;
-    double mantissa = frexp(recip_difficulty, &exponent);
-
-    // Convert mantissa to an integer (scale it up to 53 bits of precision for double)
-    uint64_t mantissa_int = (uint64_t)(mantissa * (1ULL << 53));
-
-    // Adjust the exponent to account for DIFFICULTY_1_TARGET
-    int64_t new_exponent = DIFFICULTY_1_TARGET_EXPONENT + exponent - 53;
-
-    // Multiply mantissa by DIFFICULTY_1_TARGET's mantissa
-    uint64_t new_mantissa = mantissa_int * DIFFICULTY_1_TARGET_MANTISSA;
-
-    // Clear the target buffer
-    memset(target, 0, DOMAIN_HASH_SIZE);
-
-    // Calculate start position and bit remainder
-    int start = new_exponent / 8;     // Byte position
-    int remainder = new_exponent % 8; // Bit offset within the byte
-
-    // Check bounds
-    if (start < 0 || start >= DOMAIN_HASH_SIZE)
-    {
-        fprintf(stderr, "Error: Target is out of bounds.\n");
-        return NULL;
-    }
-
-    // Insert the mantissa into the target buffer
-    uint64_t shifted_mantissa = new_mantissa << remainder; // Align the mantissa to the target buffer
-    for (int i = 0; i < 8 && start + i < DOMAIN_HASH_SIZE; i++)
-    {
-        target[start + i] = (shifted_mantissa >> (56 - 8 * i)) & 0xff;
-    }
-
-    // Handle carry into the next byte if necessary
-    if (start + 8 < DOMAIN_HASH_SIZE && remainder > 0)
-    {
-        target[start + 8] = (new_mantissa >> (64 - remainder)) & 0xff;
-    }
-    printf("target:\t0x");
-    for (int i = 0; i < 32; i++)
-    {
-        printf("%02x", target[i]);
-    }
-    printf("\n");
-    return target;
-}
-
 double difficulty_from_target(uint8_t *target)
 {
-    uint64_t target_value = 0;
+    mpz_t target_val, max_val;
+    mpf_t diff, max_mpf, target_mpf;
 
-    // Convert the target (byte array) back to a 64-bit integer
-    for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
+    // Initialize GMP variables with sufficient precision (at least 256 bits)
+    mpz_init(target_val);
+    mpz_init(max_val);
+    mpf_init2(diff, 256); // Set precision to 256 bits
+    mpf_init2(max_mpf, 256);
+    mpf_init2(target_mpf, 256);
+
+    // Import target as a big integer (big-endian byte array)
+    mpz_import(target_val, DOMAIN_HASH_SIZE, 1, sizeof(uint8_t), 0, 0, target);
+
+    // Maximum target
+    mpz_set_str(max_val, "00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 16);
+
+    // Convert both integers to floating-point for division
+    mpf_set_z(max_mpf, max_val);
+    mpf_set_z(target_mpf, target_val);
+
+    // Compute difficulty = max_target / target
+    mpf_div(diff, max_mpf, target_mpf);
+
+    double difficulty = mpf_get_d(diff);
+
+    // Clean up
+    mpz_clear(target_val);
+    mpz_clear(max_val);
+    mpf_clear(diff);
+    mpf_clear(max_mpf);
+    mpf_clear(target_mpf);
+
+    return difficulty;
+}
+
+uint8_t *target_from_pool_difficulty(double difficulty)
+{
+    mpz_t max_target, target;
+    mpf_t diff, temp;
+
+    // Initialize GMP variables with sufficient precision (at least 256 bits)
+    mpz_init(max_target);
+    mpz_init(target);
+    mpf_init2(diff, 256); // Set precision to 256 bits
+    mpf_init2(temp, 256);
+
+    // Set max_target to the full 256-bit value
+    mpz_set_str(max_target, "0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 16);
+
+    // Set difficulty as a floating-point value
+    mpf_set_d(diff, difficulty);
+    if (mpf_cmp_d(diff, 0.0) <= 0) // Check for invalid difficulty
     {
-        target_value = (target_value << 8) | target[i];
+        mpz_clear(max_target);
+        mpz_clear(target);
+        mpf_clear(diff);
+        mpf_clear(temp);
+        return NULL;
     }
 
-    // Calculate difficulty (inverse of the scaling we applied earlier)
-    double difficulty = (double)0xFFFFFFFFFFFFFFFF / target_value;
-    return difficulty;
+    // Compute target = max_target / difficulty
+    mpf_set_z(temp, max_target);
+    mpf_div(temp, temp, diff);
+    mpz_set_f(target, temp);
+
+    // Allocate target as 32-byte array
+    uint8_t *target_bytes = calloc(DOMAIN_HASH_SIZE, sizeof(uint8_t));
+    if (!target_bytes)
+    {
+        mpz_clear(max_target);
+        mpz_clear(target);
+        mpf_clear(diff);
+        mpf_clear(temp);
+        return NULL;
+    }
+
+    // Export target to exactly 32 bytes, big-endian
+    size_t count;
+    mpz_export(target_bytes, &count, 1, sizeof(uint8_t), 0, 0, target);
+    if (count < DOMAIN_HASH_SIZE)
+    {
+        // Shift bytes to the right and pad with leading zeros
+        memmove(target_bytes + (DOMAIN_HASH_SIZE - count), target_bytes, count);
+        memset(target_bytes, 0, DOMAIN_HASH_SIZE - count);
+    }
+
+    // Print target in hex (big-endian)
+    printf("Target from Pool: 0x");
+    for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
+    {
+        printf("%02x", target_bytes[i]);
+    }
+    printf("\n");
+    printf("Difficulty: %f\n", difficulty_from_target(target_bytes));
+
+    // Cleanup
+    mpz_clear(max_target);
+    mpz_clear(target);
+    mpf_clear(diff);
+    mpf_clear(temp);
+
+    return target_bytes;
 }
 
 int compare_target(uint8_t *hash, uint8_t *target)
 {
-    // Compare byte by byte in a way that simulates numerical comparison
+    if (target == NULL)
+    {
+        printf("Error: target is NULL\n");
+        return 2;
+    }
+
+    uint8_t reversed_hash[DOMAIN_HASH_SIZE];
+    uint8_t reversed_target[DOMAIN_HASH_SIZE];
+
     for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
     {
-        if (hash[i] < target[i])
+        reversed_target[i] = target[DOMAIN_HASH_SIZE - 1 - i];
+    }
+
+    int result = 0;
+    for (int i = DOMAIN_HASH_SIZE - 1; i >= 0; i--)
+    {
+        if (hash[i] < reversed_target[i])
         {
-            return -1; // Hash is numerically smaller than the target, valid hash
+            result = -1;
+            break;
         }
-        else if (hash[i] > target[i])
+        else if (hash[i] > reversed_target[i])
         {
-            return 1; // Hash is numerically larger than the target, invalid hash
+            result = 1;
+            break;
         }
     }
-    return 0; // Hash is equal to the target
+    // printf("hash (LE):\t0x");
+    // for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
+    // {
+    //     printf("%02x", hash[i]);
+    // }
+    // printf("\n");
+    // printf("target (LE):\t0x");
+    // for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
+    // {
+    //     printf("%02x", reversed_target[i]);
+    // }
+    // printf("\n");
+    return result;
 }
 
 uint8_t *target;
@@ -237,7 +250,6 @@ void smallJobHeader(const uint64_t *ids, uint8_t *headerData)
 {
     for (int i = 0; i < 4; i++)
     {
-        // Convert the uint64 back to little endian byte order
         uint64_t value = ids[i];
         for (int j = 0; j < 8; j++)
         {
@@ -249,72 +261,12 @@ void smallJobHeader(const uint64_t *ids, uint8_t *headerData)
 void init_mining_job()
 {
     current_job.running = 0;
-    pthread_mutex_init(&current_job.mutex, NULL);
-    pthread_cond_init(&current_job.cond, NULL);
 }
 
 void cleanup_mining_job()
 {
-    pthread_mutex_destroy(&current_job.mutex);
-    pthread_cond_destroy(&current_job.cond);
-    if (current_job.job)
-        free(current_job.job);
-}
-
-int handle_mining_submission_response(const char *response)
-{
-    int ret = 0;
-    cJSON *json = cJSON_Parse(response);
-    if (!json)
-    {
-        fprintf(stderr, "Failed to parse JSON response\n");
-        return -1;
-    }
-
-    cJSON *error = cJSON_GetObjectItemCaseSensitive(json, "error");
-    cJSON *id = cJSON_GetObjectItemCaseSensitive(json, "id");
-    if (cJSON_IsNull(error) || error == NULL)
-    {
-        // Successful submission
-        printf("Mining solution accepted\n");
-        cpu_blocks++;
-    }
-    else
-    {
-        // Error occurred
-        cJSON *error_code = cJSON_GetArrayItem(error, 0);
-        cJSON *error_message = cJSON_GetArrayItem(error, 1);
-        printf("%s", cJSON_Print(error_code));
-        printf("%s", cJSON_Print(error_message));
-        if (error_code && error_message)
-        {
-            switch (error_code->valueint)
-            {
-            case 20:
-                printf("Incorrect proof of work hash. Retrying solution.\n");
-                cpu_rejected++;
-                ret = -1;
-                break;
-            case 21:
-                printf("Stale job. Requesting new mining job.\n");
-                cpu_rejected++;
-                ret = -1;
-                break;
-            case 22:
-                printf("Duplicate share detected.\n");
-                cpu_rejected++;
-                ret = -1;
-                break;
-            default:
-                printf("Unknown submission error: %d - %s\n",
-                       error_code->valueint,
-                       error_message->valuestring);
-                ret = -1;
-            }
-        }
-    }
-    cJSON_Delete(json);
-    return ret;
+    current_job.job = NULL;
+    current_job.running = 0;
 }
 
 int submit_mining_solution(int sockfd, const char *worker, const char *job_id, uint64_t nonce, uint8_t *hash)
@@ -366,20 +318,13 @@ int submit_mining_solution(int sockfd, const char *worker, const char *job_id, u
     }
 
     // Clean up
-    free(submit_msg);
+    if (submit_msg != NULL)
+    {
+        // printf("free submit msg\n");
+        free(submit_msg);
+        submit_msg = NULL;
+    }
     cJSON_Delete(submit_request);
-
-    char response_buffer[1024];
-    int bytes_received = recv(sockfd, response_buffer, sizeof(response_buffer) - 1, 0);
-    if (bytes_received > 0)
-    {
-        response_buffer[bytes_received] = '\0';
-        return handle_mining_submission_response(response_buffer);
-    }
-    else
-    {
-        return -1;
-    }
 }
 
 void *hashrate_display_thread(void *arg)
@@ -417,60 +362,34 @@ void *hashrate_display_thread(void *arg)
 
 void *mining_thread_function(void *arg)
 {
-    MiningJob *job = (MiningJob *)arg;
-    if (!job)
-    {
-        perror("Received null job argument");
-        return NULL;
-    }
-    memcpy(job, (MiningJob *)arg, sizeof(MiningJob));
+    // Create a local copy of the job to avoid racing conditions
+    MiningJob job_copy;
+    memcpy(&job_copy, (MiningJob *)arg, sizeof(MiningJob));
 
     State state = {0};
-    memcpy(state.prePowHash, job->header, DOMAIN_HASH_SIZE);
-    state.Timestamp = (uint64_t)job->timestamp;
+    memcpy(state.prePowHash, job_copy.header, DOMAIN_HASH_SIZE);
+    state.Timestamp = (uint64_t)job_copy.timestamp;
 
-    uint64_t nonce = job->indice; // Start nonce unique to the thread
-    uint64_t step = threads;      // Increment step equal to the total number of threads
+    uint64_t nonce = job_copy.indice; // Start nonce unique to the thread
+    uint64_t step = threads;          // Increment step equal to the total number of threads
 
     generateHoohashMatrix(state.prePowHash, state.mat);
 
-    while (job->running)
+    while (job_copy.running)
     {
         state.Nonce = nonce;
         uint8_t result[DOMAIN_HASH_SIZE];
         miningAlgorithm(&state, result);
 
-        if (compare_target(result, target) < 0)
+        if (compare_target(result, target) <= 0)
         {
-            printf("hash:\t0x");
-            for (int i = 0; i < 32; i++)
-            {
-                printf("%02x", result[i]);
-            }
-            printf("\n");
-            printf("target:\t0x");
-            for (int i = 0; i < 32; i++)
-            {
-                printf("%02x", target[i]);
-            }
-            printf("\n");
-            if (submit_mining_solution(job->sockfd, "worker", job->job, nonce, result) == 0)
-            {
-                printf("Mining solution accepted\n");
-                break;
-            }
-            else
-            {
-                printf("Failed to submit valid solution\n");
-            }
-            sleep(1);
+            // Use the sockfd from the copy, not directly from arg which might be changed by another thread
+            submit_mining_solution(job_copy.sockfd, "worker", job_copy.job, nonce, result);
         }
 
-        nonce += step; // Increment nonce by the step size
-
-        // pthread_mutex_lock(&hashrate_mutex);
+        nonce += step;
+        job_copy.running = current_job.running;
         nonces_processed++;
-        // pthread_mutex_unlock(&hashrate_mutex);
     }
 
     return NULL;
@@ -487,65 +406,65 @@ void start_mining_loop(int sockfd, char *job, uint8_t *header, double timestamp)
     }
 
     // Stop any existing mining threads
+    // printf("Stopping existing mining jobs\n");
     if (current_job.running)
     {
         current_job.running = 0;
-
         // Join all threads
-        if (mining_threads != NULL)
+        for (i = 0; i < threads; i++)
         {
-            for (i = 0; i < threads; i++)
-            {
-                pthread_join(mining_threads[i], NULL);
-            }
-            free(mining_threads);
-            mining_threads = NULL;
+            pthread_cancel(mining_threads[i]);
         }
+        // printf("free mining threads\n");
+        free(mining_threads);
+        mining_threads = NULL;
     }
 
     // Update the job details
-    if (current_job.job)
-        free(current_job.job);
+    // printf("Update job details\n");
+    current_job.job = NULL;
     current_job.sockfd = sockfd;
     current_job.job = strdup(job);
     if (!current_job.job)
     {
-        perror("Failed to allocate memory for job");
         return;
     }
     memcpy(current_job.header, header, DOMAIN_HASH_SIZE);
     current_job.timestamp = timestamp;
     current_job.running = 1;
 
-    // Allocate memory for thread handles and indices
+    // Allocate memory for thread handles
+    // printf("Allocate memory for thread handles\n");
     mining_threads = malloc(threads * sizeof(pthread_t));
     if (!mining_threads)
     {
-        perror("Failed to allocate memory for threads or indices");
+        perror("Failed to allocate memory for threads\n");
         current_job.running = 0;
         return;
     }
 
     // Create mining threads
+    // printf("Create mining threads\n");
     for (i = 0; i < threads; i++)
     {
         current_job.indice = i;
         if (pthread_create(&mining_threads[i], NULL, mining_thread_function, &current_job) != 0)
         {
-            perror("Thread creation failed");
+            perror("Thread creation failed\n");
             current_job.running = 0;
             break;
         }
     }
 
     // If thread creation failed partway, clean up
-    if (i < threads)
+    // printf("If thread creation failed partway, clean up\n");
+    if (i < threads && mining_threads != NULL)
     {
-        current_job.running = 0;
         for (int j = 0; j < i; j++)
         {
-            pthread_join(mining_threads[j], NULL);
+            pthread_cancel(mining_threads[j]);
         }
+        // printf("free mining threads\n");
         free(mining_threads);
         mining_threads = NULL;
     }
@@ -553,6 +472,23 @@ void start_mining_loop(int sockfd, char *job, uint8_t *header, double timestamp)
 
 void process_stratum_message(int sockfd, cJSON *message)
 {
+    if (!message)
+    {
+        fprintf(stderr, "Null message received in process_stratum_message\n");
+        return;
+    }
+
+    char *message_str = cJSON_Print(message);
+    if (message_str)
+    {
+        printf("%s\n", message_str);
+        // printf("free message str\n");
+        if (message_str != NULL)
+        {
+            free(message_str);
+        }
+    }
+
     cJSON *method = cJSON_GetObjectItemCaseSensitive(message, "method");
     if (cJSON_IsString(method))
     {
@@ -565,7 +501,7 @@ void process_stratum_message(int sockfd, cJSON *message)
                 if (cJSON_IsNumber(difficulty))
                 {
                     double diff = (difficulty->valuedouble);
-                    target = target_from_difficulty(diff);
+                    target = target_from_pool_difficulty(diff);
                 }
             }
         }
@@ -580,9 +516,6 @@ void process_stratum_message(int sockfd, cJSON *message)
 
                 if (cJSON_IsString(job_id) && cJSON_IsArray(prev_hash_array) && cJSON_IsNumber(time))
                 {
-                    // printf("Job ID: %s\n", job_id->valuestring);
-                    // printf("Previous header: ");
-
                     uint64_t hash_elements[4] = {0};
                     for (int i = 0; i < cJSON_GetArraySize(prev_hash_array) && i < 4; i++)
                     {
@@ -595,24 +528,64 @@ void process_stratum_message(int sockfd, cJSON *message)
 
                     uint8_t headerData[32];
                     smallJobHeader(hash_elements, headerData);
-
-                    // Print the hash in hex format
-                    // for (int i = 0; i < 32; i++)
-                    // {
-                    //     printf("%02x", headerData[i]);
-                    // }
-                    // printf("\n");
-
-                    // printf("Timestamp: %" PRIu64 "\n", (uint64_t)time->valuedouble);
+                    // printf("Start mining loop\n");
                     start_mining_loop(sockfd, job_id->valuestring, headerData, time->valuedouble);
                 }
             }
         }
+        else if (strcmp(method->valuestring, "set_extranonce") == 0)
+        {
+            // TODO: Handle setting extranonce.
+            // {
+            //         "jsonrpc":      "2.0",
+            //         "method":       "set_extranonce",
+            //         "params":       ["f013", 6],
+            //         "id":   null
+            // }
+        }
     }
-    // Handle other methods or no method case as needed
+    else
+    {
+        cJSON *result = cJSON_GetObjectItemCaseSensitive(message, "result");
+        if (cJSON_IsNull(result))
+        {
+            cJSON *error = cJSON_GetObjectItemCaseSensitive(message, "error");
+            if (cJSON_IsArray(error) && cJSON_GetArraySize(error) >= 3)
+            {
+                cJSON *error_code = cJSON_GetArrayItem(error, 0);
+                cJSON *error_message = cJSON_GetArrayItem(error, 1);
+                cJSON *thirdvalue = cJSON_GetArrayItem(error, 2);
+                switch (error_code->valueint)
+                {
+                case 20:
+                    cpu_rejected++;
+                    printf("%s\n", error_message->valuestring);
+                    break;
+                case 21:
+                    cpu_rejected++;
+                    printf("%s\n", error_message->valuestring);
+                    break;
+                case 22:
+                    cpu_rejected++;
+                    printf("%s\n", error_message->valuestring);
+                    break;
+                case 24:
+                    printf("%s\n", error_message->valuestring);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            if (cJSON_IsTrue(result))
+            {
+                printf("Mining solution accepted\n");
+                cpu_blocks++;
+            }
+        }
+    }
 }
 
-// Thread function to handle incoming Stratum messages
 void *stratum_receive_thread(void *arg)
 {
     StratumContext *context = (StratumContext *)arg;
@@ -638,7 +611,7 @@ void *stratum_receive_thread(void *arg)
         int bytes_read = recv(context->sockfd, buffer, sizeof(buffer) - 1, 0);
         if (bytes_read <= 0)
         {
-            printf("Connection closed or error\n");
+            printf("Failed reading bytes\n");
             break;
         }
 
@@ -656,7 +629,8 @@ void *stratum_receive_thread(void *arg)
         // Process complete JSON messages
         char *message_start = json_buffer;
         char *message_end;
-        while ((message_end = strchr(message_start, '\n')) || json_buffer_len >= sizeof(json_buffer) - 1)
+        while ((message_end = strchr(message_start, '\n')) != NULL ||
+               (json_buffer_len > 0 && json_buffer_len >= sizeof(json_buffer) - 1))
         {
             if (message_end)
             {
@@ -666,13 +640,6 @@ void *stratum_receive_thread(void *arg)
                 cJSON *message = cJSON_Parse(message_start);
                 if (message)
                 {
-                    // Print the JSON message
-                    // char *string = cJSON_Print(message);
-                    // if (string)
-                    // {
-                    //     printf("Received message: %s\n", string);
-                    //     free(string); // Free the string allocated by cJSON_Print
-                    // }
                     process_stratum_message(context->sockfd, message);
                     cJSON_Delete(message);
                 }
@@ -683,23 +650,30 @@ void *stratum_receive_thread(void *arg)
 
                 message_start = message_end + 1;
                 json_buffer_len -= (message_len + 1);
-                memmove(json_buffer, message_start, json_buffer_len + 1);
+
+                if (json_buffer_len > 0)
+                {
+                    memmove(json_buffer, message_start, json_buffer_len);
+                    message_start = json_buffer;
+                }
             }
             else
             {
-                // If we've reached the end of the buffer without finding '\n', we might have an incomplete message
+                // No newline found but buffer is full, clear it to avoid overflow
+                if (json_buffer_len >= sizeof(json_buffer) - 1)
+                {
+                    // fprintf(stderr, "Warning: Discarding oversized message without newline\n");
+                    json_buffer_len = 0;
+                }
                 break;
             }
         }
     }
 
-    // Clean up
-    context->running = 0;
-    free(context);
     return NULL;
 }
 
-int start_stratum_receive_thread(int sockfd, pthread_t *thread)
+int start_stratum_receive_thread(int sockfd, pthread_t *thread, StratumContext **out_context)
 {
     StratumContext *context = malloc(sizeof(StratumContext));
     if (!context)
@@ -714,10 +688,17 @@ int start_stratum_receive_thread(int sockfd, pthread_t *thread)
     if (pthread_create(thread, NULL, stratum_receive_thread, context) != 0)
     {
         perror("Thread creation failed");
-        free(context);
+        if (context != NULL)
+        {
+            // printf("free context\n");
+            free(context);
+            context = NULL;
+        }
         return -1;
     }
 
+    // Return the context to the caller
+    *out_context = context;
     return 0;
 }
 
@@ -741,7 +722,12 @@ int stratum_subscribe(int sockfd, const char *pool_ip, int pool_port)
     snprintf(subscribe_msg + strlen(subscribe_msg), 2, "\n");
 
     int send_result = send(sockfd, subscribe_msg, strlen(subscribe_msg), 0);
-    free(subscribe_msg);
+    if (subscribe_msg != NULL)
+    {
+        // printf("free subscribe msg\n");
+        free(subscribe_msg);
+        subscribe_msg = NULL;
+    }
     cJSON_Delete(subscribe_request);
 
     if (send_result < 0)
@@ -750,11 +736,10 @@ int stratum_subscribe(int sockfd, const char *pool_ip, int pool_port)
         return -1;
     }
 
-    printf("Subscription request sent successfully\n");
+    // printf("Subscription request sent successfully\n");
     return 0;
 }
 
-// Stratum communication functions
 int stratum_authenticate(int sock_fd, const char *username, const char *password)
 {
     cJSON *auth_request = cJSON_CreateObject();
@@ -766,45 +751,23 @@ int stratum_authenticate(int sock_fd, const char *username, const char *password
     cJSON_AddItemToObject(auth_request, "params", params);
 
     char *auth_msg = cJSON_PrintUnformatted(auth_request);
-    printf("Sending authentication message: %s\n", auth_msg);
+    // printf("Sending authentication message: %s\n", auth_msg);
     strcat(auth_msg, "\n");
-    send(sock_fd, auth_msg, strlen(auth_msg), 0);
-
-    free(auth_msg);
+    int send_result = send(sock_fd, auth_msg, strlen(auth_msg), 0);
+    if (auth_msg != NULL)
+    {
+        // printf("free auth msg\n");
+        free(auth_msg);
+        auth_msg = NULL;
+    }
     cJSON_Delete(auth_request);
 
-    char buffer[BUFFER_SIZE];
-    int bytes_read = recv(sock_fd, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_read <= 0)
+    if (send_result < 0)
     {
-        perror("Authentication response failed");
+        perror("Failed to send subscription request");
         return -1;
     }
-    buffer[bytes_read] = '\0';
-
-    printf("Received response: %s\n", buffer);
-
-    cJSON *response = cJSON_Parse(buffer);
-    if (!response)
-    {
-        fprintf(stderr, "JSON parsing error: %s\n", cJSON_GetErrorPtr());
-        return -1;
-    }
-
-    cJSON *result = cJSON_GetObjectItemCaseSensitive(response, "result");
-
-    if (cJSON_IsArray(result))
-    {
-        cJSON *success = cJSON_GetArrayItem(result, 0);
-        if (cJSON_IsTrue(success))
-        {
-            cJSON_Delete(response);
-            return 0; // Authentication successful
-        }
-    }
-
-    cJSON_Delete(response);
-    return -1; // Authentication failed
+    return 0;
 }
 
 int connect_to_stratum_server(const char *server_ip, int port)
@@ -883,31 +846,17 @@ void parse_args(int argc, char **argv, const char **pool_ip, int *pool_port, con
     }
 }
 
-int check_endianness()
-{
-    unsigned int x = 1;
-    char *c = (char *)&x;
-    // If the first byte is 1, it's little-endian
-    if (*c == 1)
-    {
-        return 1;
-    }
-    else
-    {
-        return 0;
-    }
-}
-
 int main(int argc, char **argv)
 {
     signal(SIGPIPE, SIG_IGN);
-    endianness = check_endianness();
-    printf("Endianess: %s\n", endianness == 1 ? "Little-endian" : "Big-endian");
     const char *pool_ip = "127.0.0.1";
     int pool_port = 5555;
     const char *username = "    ";
     const char *password = "x";
-    int threads = get_cpu_threads(); // Declare as int, not int *
+
+    target = NULL;
+    threads = get_cpu_threads();
+    mining_threads = NULL;
 
     parse_args(argc, argv, &pool_ip, &pool_port, &username, &password, &threads);
 
@@ -918,40 +867,44 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    printf("Connected to Stratum server\n");
-
-    if (stratum_subscribe(sockfd, pool_ip, pool_port) != 0)
+    if (stratum_subscribe(sockfd, pool_ip, pool_port) == 0)
     {
-        fprintf(stderr, "Subscribe failed\n");
+        printf("Stratum subscribe sent\n");
     }
 
-    if (stratum_authenticate(sockfd, username, password) != 0)
+    if (stratum_authenticate(sockfd, username, password) == 0)
     {
-        fprintf(stderr, "Authentication failed\n");
-        close(sockfd);
-        return -1;
+        printf("Stratum authenticate sent\n");
     }
-    printf("Authentication successful\n");
 
     init_mining_job();
 
-    pthread_t receive_thread, display_thread;
-    if (start_stratum_receive_thread(sockfd, &receive_thread) == 0)
-    {
-        // Start the display thread for hashrate
-        if (pthread_create(&display_thread, NULL, hashrate_display_thread, NULL) != 0)
-        {
-            perror("Failed to create hashrate display thread");
-            close(sockfd);
-            cleanup_mining_job();
-            return -1;
-        }
+    StratumContext context;
+    context.sockfd = sockfd;
+    context.running = 1;
 
-        pthread_join(receive_thread, NULL);
-        pthread_join(display_thread, NULL);
+    pthread_t receive_thread, display_thread;
+
+    int error = 0;
+    if (pthread_create(&receive_thread, NULL, stratum_receive_thread, &context) != 0)
+    {
+        perror("Failed to create receive thread");
+        error = -1;
     }
 
+    if (pthread_create(&display_thread, NULL, hashrate_display_thread, NULL) != 0)
+    {
+        perror("Failed to create hashrate display thread");
+        error = -1;
+    }
+
+    pthread_join(receive_thread, NULL);
+    pthread_join(display_thread, NULL);
     close(sockfd);
     cleanup_mining_job();
-    return 0;
+    if (target != NULL)
+    {
+        free(target);
+    }
+    return error;
 }
