@@ -288,13 +288,15 @@ float ComplexNonLinear(float x)
 #define COMPLEX_INPUT_CLAMP_START_POINT 64
 #define PRODUCT_VALUE_SCALE_MULTIPLIER 0.00001
 
+int complexRounds = 0;
+
 float ForComplex(float forComplex)
 {
     float complex;
     complex = ComplexNonLinear(forComplex);
     while (complex >= COMPLEX_OUTPUT_CLAMP)
     {
-
+        complexRounds++;
         forComplex = forComplex * 0.1;
         complex = ComplexNonLinear(forComplex);
     }
@@ -350,15 +352,17 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     printf("]\n");
 
     // Matrix-vector multiplication with floating point operations
-
+    int forComplexCalls = 0;
+    complexRounds = 0;
     // printf("For Complex: ");
     for (int i = 0; i < 64; i++)
     {
         for (int j = 0; j < 64; j++)
         {
-            switch ((i * j + (int)mat[i][j] * (int)vector[j]) % 100)
+            switch ((i * j) % 100)
             {
             case 0: // Complex non-linear function
+                forComplexCalls++;
                 product[i] += ForComplex(mat[i][j] * vector[j]);
                 break;
             case 1: // Division
@@ -401,6 +405,8 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             }
         }
     }
+    printf("ComplexRounds %d\n", complexRounds);
+    printf("ForComplex called! %d\n", forComplexCalls);
     printf("\n");
     printf("Product: [");
     for (int i = 0; i < 64; i++)
