@@ -356,7 +356,7 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     {
         for (int j = 0; j < 64; j++)
         {
-            switch ((i * j) % 20)
+            switch ((i * j + (int)mat[i][j] * (int)vector[j]) % 100)
             {
             case 0: // Complex non-linear function
                 product[i] += ForComplex(mat[i][j] * vector[j]);
