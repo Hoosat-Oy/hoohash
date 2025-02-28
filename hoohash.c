@@ -329,14 +329,14 @@ void generateHoohashMatrix(uint8_t *hash, float mat[64][64])
 
 void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output)
 {
-    float vector[64] = {0};
+    uint8_t vector[64] = {0};
     float product[64] = {0};
 
     // Populate the vector with floating-point values
     for (int i = 0; i < 32; i++)
     {
-        vector[2 * i] = (float)(hashBytes[i] >> 4);
-        vector[2 * i + 1] = (float)(hashBytes[i] & 0x0F);
+        vector[2 * i] = hashBytes[i] >> 4;
+        vector[2 * i + 1] = hashBytes[i] & 0x0F;
     }
     // printf("Matrix[0]: ");
     // for (int i = 0; i < 64; i++)
@@ -347,7 +347,7 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     printf("Vector: [");
     for (int i = 0; i < 64; i++)
     {
-        printf("%f ", vector[i]);
+        printf("%d ", vector[i]);
     }
     printf("]\n");
 
@@ -359,47 +359,167 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     {
         for (int j = 0; j < 64; j++)
         {
-            switch ((i * j) % 100)
+            switch ((((i * vector[j]) * (j * vector[i])) * (vector[i] + vector[j])) % 1024)
             {
-            case 0: // Complex non-linear function
+            case 0:
                 forComplexCalls++;
                 product[i] += ForComplex(mat[i][j] * vector[j]);
                 break;
-            case 1: // Division
+            case 1:
+            case 65:
+                product[i] += mat[i][j] + mat[j][i];
+                break;
+            case 2:
+            case 66:
+                if (mat[i][j] > mat[j][i])
+                {
+                    product[i] += mat[i][j] - mat[j][i];
+                }
+                else
+                {
+                    product[i] += mat[j][i] - mat[i][j];
+                }
+                break;
+            case 3:
+            case 67:
+                product[i] += mat[i][j] + vector[j];
+                break;
+            case 4:
+            case 68:
+                product[i] += (mat[j][i] - vector[j]) * vector[j];
+                break;
             case 5:
-            case 9:
-            case 13:
-            case 17:
+            case 69:
                 if (vector[j] != 0)
                 {
                     product[i] += mat[i][j] / vector[j];
                 }
                 else
                 {
-                    product[i] += mat[i][j] / 1.0f; // Safeguard against divizion by zero.
+                    product[i] += mat[i][j] / 1.0f; // Safeguard against division by zero.
                 }
                 break;
-            case 2: // Multiplication
             case 6:
-            case 10:
-            case 14:
-            case 18:
-                product[i] += mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER;
+            case 70:
+                product[i] += mat[i][j];
                 break;
-            case 3: // Addition
             case 7:
-            case 11:
-            case 15:
-            case 19:
-                product[i] += mat[i][j] + vector[j];
+            case 71:
+                product[i] += mat[j][i];
                 break;
-            case 4: // Subtraction
             case 8:
+            case 72:
+                product[i] += (mat[i][j] - vector[i]) * vector[j];
+                break;
+            case 9:
+            case 73:
+                product[i] += vector[i];
+                break;
+            case 10:
+            case 74:
+                product[i] += vector[j];
+                break;
+            case 11:
+            case 75:
+                product[i] -= vector[j];
+                break;
             case 12:
+            case 77:
+                product[i] += (mat[i][j] - vector[j]) * vector[i];
+                break;
+            case 13:
+            case 78:
+                product[i] -= vector[i];
+                break;
+            case 14:
+            case 79:
+                product[i] -= mat[j][i];
+                break;
+            case 15:
+            case 80:
+                forComplexCalls++;
+                if (vector[j] != 0)
+                {
+                    product[i] += ForComplex(mat[i][j] / vector[j]);
+                }
+                else
+                {
+                    product[i] += ForComplex(mat[i][j]);
+                }
+                break;
             case 16:
+            case 81:
                 product[i] += mat[i][j] - vector[j];
                 break;
-            default: // Fallback multiplication
+            case 18:
+            case 82:
+                product[i] -= mat[i][j];
+                break;
+            case 19:
+            case 83:
+                product[i] -= (mat[i][j] - vector[i]) * vector[j];
+                break;
+            case 20:
+            case 84:
+                product[i] -= (mat[j][i] - vector[i]) * vector[j];
+                break;
+            case 21:
+            case 85:
+                product[i] -= (mat[i][j] - vector[j]) * vector[i];
+                break;
+            case 22:
+            case 86:
+                product[i] -= (mat[j][i] - vector[j]) * vector[i];
+                break;
+            case 23:
+            case 87:
+                product[i] += mat[i][j] - vector[i];
+                break;
+            case 24:
+            case 88:
+                product[i] += mat[j][i] - vector[i];
+                break;
+            case 25:
+            case 89:
+                product[i] -= (mat[j][i] * vector[j]) + vector[i];
+                break;
+            case 26:
+            case 90:
+                product[i] += mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER;
+                break;
+            case 27:
+            case 91:
+                if (mat[i][j] > mat[j][i])
+                {
+                    product[i] += mat[i][j] / mat[j][i];
+                }
+                else
+                {
+                    product[i] += mat[j][i] / mat[i][j];
+                }
+                break;
+            case 28:
+            case 92:
+                product[i] += mat[i][j] + vector[i];
+                break;
+            case 29:
+            case 93:
+                product[i] += mat[j][i] + vector[i];
+                break;
+            case 30:
+            case 94:
+                forComplexCalls++;
+                product[i] += ForComplex(mat[i][j] + vector[j]);
+                break;
+            case 31:
+            case 95:
+                product[i] -= (mat[j][i] * vector[i]) + vector[j];
+                break;
+            case 45:
+                forComplexCalls++;
+                product[i] += ForComplex(mat[i][j] - vector[j]);
+                break;
+            default:
                 product[i] += mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER;
                 break;
             }
