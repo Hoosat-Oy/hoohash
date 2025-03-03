@@ -83,7 +83,7 @@ static inline uint64_t xoshiro_gen(xoshiro_state *x);
 void generateHoohashMatrix(uint8_t *hash, float mat[64][64]);
 
 // Function to perform matrix multiplication with the Hoohash matrix
-void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output);
+void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce);
 
 // Function to calculate the proof of work value
 void CalculateProofOfWorkValue(State *state, uint8_t *result);

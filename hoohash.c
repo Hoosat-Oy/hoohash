@@ -327,10 +327,11 @@ void generateHoohashMatrix(uint8_t *hash, float mat[64][64])
     printf("]\n");
 }
 
-void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output)
+void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce)
 {
     uint8_t vector[64] = {0};
     float product[64] = {0};
+    float nonceModifier = (float)(nonce / 2) * PRODUCT_VALUE_SCALE_MULTIPLIER;
 
     // Populate the vector with floating-point values
     for (int i = 0; i < 32; i++)
@@ -371,28 +372,28 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
                 {
 
                     forComplexCalls++;
-                    product[i] += ForComplex(mat[i][j] * vector[j]);
+                    product[i] += ForComplex(mat[i][j] * PRODUCT_VALUE_SCALE_MULTIPLIER * nonceModifier * vector[j]);
                     break;
                 }
                 else if (transformFactor < 0.5)
                 {
 
                     forComplexCalls++;
-                    product[i] += ForComplex(mat[i][j] * vector[i]);
+                    product[i] += ForComplex(mat[i][j] * PRODUCT_VALUE_SCALE_MULTIPLIER * nonceModifier * vector[i]);
                     break;
                 }
                 else if (transformFactor < 0.75)
                 {
 
                     forComplexCalls++;
-                    product[i] += ForComplex(mat[j][i] * vector[j]);
+                    product[i] += ForComplex(mat[j][i] * PRODUCT_VALUE_SCALE_MULTIPLIER * nonceModifier * vector[j]);
                     break;
                 }
                 else
                 {
 
                     forComplexCalls++;
-                    product[i] += ForComplex(mat[j][i] * vector[i]);
+                    product[i] += ForComplex(mat[j][i] * PRODUCT_VALUE_SCALE_MULTIPLIER * nonceModifier * vector[i]);
                     break;
                 }
             case 1:
@@ -718,7 +719,7 @@ void CalculateProofOfWorkValue(State *state, uint8_t *result)
     // printf("First pass: %s\n", encodeHex(firstPass, DOMAIN_HASH_SIZE));
 
     // Perform Hoohash matrix multiplication
-    HoohashMatrixMultiplication(state->mat, firstPass, lastPass);
+    HoohashMatrixMultiplication(state->mat, firstPass, lastPass, state->Nonce);
 
     // Copy lastPass to result if needed
     memcpy(result, lastPass, DOMAIN_HASH_SIZE);
