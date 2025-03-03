@@ -365,7 +365,7 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             {
             case 0:
                 forComplexCalls++;
-                product[i] += ForComplex((mat[i][j] + mat[j][i]) * vector[j]);
+                product[i] += ForComplex(mat[i][j] * vector[j]);
                 break;
             case 1:
             case 67:
