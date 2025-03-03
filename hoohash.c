@@ -587,15 +587,19 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             case 53:
             case 117:
                 product[i] += vector[i] & vector[j];
+                break;
             case 54:
             case 118:
                 product[i] -= vector[i] & vector[j];
+                break;
             case 56:
             case 119:
                 product[i] += vector[i] | vector[j];
+                break;
             case 57:
             case 120:
                 product[i] -= vector[i] | vector[j];
+                break;
             case 58:
             case 121:
                 product[i] += mat[i][j] * (vector[j] % vector[i]) * PRODUCT_VALUE_SCALE_MULTIPLIER;
@@ -615,15 +619,19 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             case 63:
             case 125:
                 product[i] += mat[i][j] * (vector[i] & vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER;
+                break;
             case 64:
             case 126:
                 product[i] -= mat[i][j] * (vector[i] & vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER;
+                break;
             case 65:
             case 127:
                 product[i] += mat[i][j] * (vector[i] | vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER;
+                break;
             case 66:
             case 128:
                 product[i] -= mat[i][j] * (vector[i] | vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER;
+                break;
             default:
                 product[i] += mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER;
                 break;
