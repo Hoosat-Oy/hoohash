@@ -359,11 +359,13 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     {
         for (int j = 0; j < 64; j++)
         {
-            switch ((((i * vector[j]) * (j * vector[i])) * (vector[i] + vector[j])) % 128)
+            int sw = (((i * vector[j]) * (j * vector[i]))) % 128;
+            // printf("(%d, %d), (%d, %d) sw: %d\n", i, j, vector[i], vector[j], sw);
+            switch (sw)
             {
             case 0:
                 forComplexCalls++;
-                product[i] += ForComplex(mat[i][j] * vector[j]);
+                product[i] += ForComplex((mat[i][j] + mat[j][i]) * vector[j]);
                 break;
             case 1:
             case 67:
@@ -436,16 +438,6 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
                 product[i] -= mat[j][i];
                 break;
             case 15:
-                forComplexCalls++;
-                if (vector[j] != 0)
-                {
-                    product[i] += ForComplex(mat[i][j] / vector[j]);
-                }
-                else
-                {
-                    product[i] += ForComplex(mat[i][j]);
-                }
-                break;
             case 16:
             case 81:
                 product[i] += mat[i][j] - vector[j];
@@ -507,17 +499,11 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
                 break;
             case 30:
             case 94:
-                forComplexCalls++;
-                product[i] += ForComplex(mat[i][j] + vector[j]);
-                break;
             case 31:
             case 95:
                 product[i] -= (mat[j][i] * vector[i]) + vector[j];
                 break;
             case 32:
-                forComplexCalls++;
-                product[i] += ForComplex(mat[i][j] - vector[j]);
-                break;
             case 33:
             case 96:
                 product[i] += (mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER) + vector[i];
