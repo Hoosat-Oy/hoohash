@@ -364,9 +364,37 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             switch (sw)
             {
             case 0:
-                forComplexCalls++;
-                product[i] += ForComplex(mat[i][j] * vector[j]);
-                break;
+                float transformFactor = fmod(mat[i][j] * PRODUCT_VALUE_SCALE_MULTIPLIER, 1);
+                transformFactor = (transformFactor < 0) ? transformFactor + 1.0f : transformFactor;
+                // printf("TansformFactor %f\n", transformFactor);
+                if (transformFactor < 0.25)
+                {
+
+                    forComplexCalls++;
+                    product[i] += ForComplex(mat[i][j] * vector[j]);
+                    break;
+                }
+                else if (transformFactor < 0.5)
+                {
+
+                    forComplexCalls++;
+                    product[i] += ForComplex(mat[i][j] * vector[i]);
+                    break;
+                }
+                else if (transformFactor < 0.75)
+                {
+
+                    forComplexCalls++;
+                    product[i] += ForComplex(mat[j][i] * vector[j]);
+                    break;
+                }
+                else
+                {
+
+                    forComplexCalls++;
+                    product[i] += ForComplex(mat[j][i] * vector[i]);
+                    break;
+                }
             case 1:
             case 67:
                 product[i] += mat[i][j] + mat[j][i];
