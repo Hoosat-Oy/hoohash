@@ -284,8 +284,7 @@ float ComplexNonLinear(float x)
 }
 
 // These matter to precision.
-#define COMPLEX_OUTPUT_CLAMP 100000
-#define COMPLEX_INPUT_CLAMP_START_POINT 64
+#define COMPLEX_OUTPUT_CLAMP 100000000
 #define PRODUCT_VALUE_SCALE_MULTIPLIER 0.00001
 
 int complexRounds = 0;
@@ -293,14 +292,21 @@ int complexRounds = 0;
 float ForComplex(float forComplex)
 {
     float complex;
+    float rounds = 0;
+    float complexStart = forComplex;
     complex = ComplexNonLinear(forComplex);
     while (complex >= COMPLEX_OUTPUT_CLAMP)
     {
-        complexRounds++;
         forComplex = forComplex * 0.1;
+        complexRounds++;
+        rounds++;
         complex = ComplexNonLinear(forComplex);
+        if (complex <= 0.01)
+        {
+            printf("%f complex at %f\n", complex, complexStart);
+        }
     }
-    return complex;
+    return complex * (float)rounds;
 }
 
 void generateHoohashMatrix(uint8_t *hash, float mat[64][64])
@@ -365,7 +371,9 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             if (sw <= 5)
             {
                 forComplexCalls++;
-                product[i] += ForComplex(mat[i][j] * modifier * vector[j]);
+                float complex = ForComplex(mat[i][j] * modifier * vector[j]);
+                // printf("%f\n", complex);
+                product[i] += complex;
             }
             else
             {
