@@ -363,7 +363,7 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
         for (int j = 0; j < 64; j++)
         {
             int sw = (nonce ^ ((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32])) % 100;
-            if (sw <= 1)
+            if (sw <= 2)
             {
                 forComplexCalls++;
                 product[i] += ForComplex(mat[i][j] * modifier * vector[j]);
@@ -397,7 +397,7 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     for (int i = 0; i < 32; i++)
     {
         res[i] = hashBytes[i] ^ scaledValues[i];
-        printf("%d ", res[i]);
+        printf("%d, ", res[i]);
     }
     printf("]\n");
     // Hash again using BLAKE3
