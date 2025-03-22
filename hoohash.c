@@ -301,10 +301,6 @@ float ForComplex(float forComplex)
         complexRounds++;
         rounds++;
         complex = ComplexNonLinear(forComplex);
-        if (complex <= 0.01)
-        {
-            printf("%f complex at %f\n", complex, complexStart);
-        }
     }
     return complex * (float)rounds;
 }
@@ -366,14 +362,11 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     {
         for (int j = 0; j < 64; j++)
         {
-            uint64_t number = nonce ^ hashBytes[j % 32];
-            int sw = (number) % 100;
+            int sw = (nonce ^ ((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32])) % 100;
             if (sw <= 5)
             {
                 forComplexCalls++;
-                float complex = ForComplex(mat[i][j] * modifier * vector[j]);
-                // printf("%f\n", complex);
-                product[i] += complex;
+                product[i] += ForComplex(mat[i][j] * modifier * vector[j]);
             }
             else
             {
