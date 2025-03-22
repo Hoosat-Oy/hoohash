@@ -360,7 +360,7 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     {
         for (int j = 0; j < 64; j++)
         {
-            int sw = (((i * vector[j]) * (j * vector[i]))) % 128;
+            int sw = (((i * vector[j]) * (j * vector[i]))) % 127;
             // printf("(%d, %d), (%d, %d) sw: %d\n", i, j, vector[i], vector[j], sw);
             switch (sw)
             {
