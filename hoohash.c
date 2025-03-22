@@ -321,12 +321,12 @@ void generateHoohashMatrix(uint8_t *hash, float mat[64][64])
             mat[i][j] = matrix_val;
         }
     }
-    printf("Matrix: [");
-    for (int i = 0; i < 64; i++)
-    {
-        printf("%f ", mat[0][i]);
-    }
-    printf("]\n");
+    // printf("Matrix: [");
+    // for (int i = 0; i < 64; i++)
+    // {
+    //     printf("%f ", mat[0][i]);
+    // }
+    // printf("]\n");
 }
 
 void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce)
@@ -347,12 +347,12 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     //     printf("%f, ", mat[0][i]);
     // }
     // printf("\n");
-    printf("Vector: [");
-    for (int i = 0; i < 64; i++)
-    {
-        printf("%d ", vector[i]);
-    }
-    printf("]\n");
+    // printf("Vector: [");
+    // for (int i = 0; i < 64; i++)
+    // {
+    //     printf("%d ", vector[i]);
+    // }
+    // printf("]\n");
 
     // Matrix-vector multiplication with floating point operations
     int forComplexCalls = 0;
@@ -363,7 +363,7 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
         for (int j = 0; j < 64; j++)
         {
             int sw = (nonce ^ ((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32])) % 100;
-            if (sw <= 5)
+            if (sw <= 1)
             {
                 forComplexCalls++;
                 product[i] += ForComplex(mat[i][j] * modifier * vector[j]);
@@ -377,12 +377,12 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     printf("ComplexRounds %d\n", complexRounds);
     printf("ForComplex called! %d\n", forComplexCalls);
     printf("\n");
-    printf("Product: [");
-    for (int i = 0; i < 64; i++)
-    {
-        printf("%f, ", product[i]);
-    }
-    printf("]\n");
+    // printf("Product: [");
+    // for (int i = 0; i < 64; i++)
+    // {
+    //     printf("%f, ", product[i]);
+    // }
+    // printf("]\n");
 
     // XOR the hash with product values, before using as input for final blake3 pass.
     printf("Final pass: [");
