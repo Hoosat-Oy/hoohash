@@ -535,15 +535,15 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             case 32:
             case 33:
             case 96:
-                product[i] += (mat[i][j] * vector[j] + vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER);
+                product[i] += (mat[i][j] * (vector[j] + vector[i]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 34:
             case 97:
-                product[i] += (mat[i][j] * vector[j] - vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER);
+                product[i] += (mat[i][j] * (vector[j] - vector[i]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 35:
             case 98:
-                product[i] += (mat[i][j] * vector[i] - vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER);
+                product[i] += (mat[i][j] * (vector[i] - vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 36:
             case 99:
