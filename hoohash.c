@@ -535,67 +535,67 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             case 32:
             case 33:
             case 96:
-                product[i] += (mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER) + vector[i];
+                product[i] += (mat[i][j] * vector[j] + vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 34:
             case 97:
-                product[i] += (mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER) - vector[i];
+                product[i] += (mat[i][j] * vector[j] - vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 35:
             case 98:
-                product[i] += (mat[i][j] * vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER) - vector[j];
+                product[i] += (mat[i][j] * vector[i] - vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 36:
             case 99:
-                product[i] += (mat[i][j] * vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER) + vector[j];
+                product[i] += (mat[i][j] * (vector[i] + vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 37:
             case 100:
-                product[i] += (mat[j][i] * vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER) + vector[j];
+                product[i] += (mat[j][i] * (vector[i] + vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 38:
             case 101:
-                product[i] += (mat[j][i] * vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER) - vector[j];
+                product[i] += (mat[j][i] * (vector[i] - vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 39:
             case 102:
-                product[i] += (mat[j][i] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER) + vector[i];
+                product[i] += (mat[j][i] * (vector[j] + vector[i]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 40:
             case 103:
-                product[i] += (mat[j][i] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER) - vector[i];
+                product[i] += (mat[j][i] * (vector[j] - vector[i]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 41:
             case 104:
-                product[i] -= (mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER) + vector[i];
+                product[i] -= (mat[i][j] * (vector[j] + vector[i]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 42:
             case 105:
-                product[i] -= (mat[i][j] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER) - vector[i];
+                product[i] -= (mat[i][j] * (vector[j] - vector[i]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 43:
             case 106:
-                product[i] -= (mat[i][j] * vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER) - vector[j];
+                product[i] -= (mat[i][j] * (vector[i] - vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 44:
             case 107:
-                product[i] -= (mat[i][j] * vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER) + vector[j];
+                product[i] -= (mat[i][j] * (vector[i] + vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 45:
             case 108:
-                product[i] -= (mat[j][i] * vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER) + vector[j];
+                product[i] -= (mat[j][i] * (vector[i] + vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 46:
             case 109:
-                product[i] -= (mat[j][i] * vector[i] * PRODUCT_VALUE_SCALE_MULTIPLIER) - vector[j];
+                product[i] -= (mat[j][i] * (vector[i] - vector[j]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 47:
             case 110:
-                product[i] -= (mat[j][i] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER) + vector[i];
+                product[i] -= (mat[j][i] * (vector[j] + vector[i]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 48:
             case 112:
-                product[i] -= (mat[j][i] * vector[j] * PRODUCT_VALUE_SCALE_MULTIPLIER) - vector[i];
+                product[i] -= (mat[j][i] * (vector[j] - vector[i]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
                 break;
             case 49:
             case 113:
