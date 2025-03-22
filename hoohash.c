@@ -365,11 +365,10 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             if (sw <= 5)
             {
                 forComplexCalls++;
-                product[i] += ForComplex(mat[i][j] * PRODUCT_VALUE_SCALE_MULTIPLIER * modifier * vector[j]);
+                product[i] += ForComplex(mat[i][j] * modifier * vector[j]);
             }
             else
             {
-
                 product[i] += mat[i][j] * vector[j];
             }
         }
