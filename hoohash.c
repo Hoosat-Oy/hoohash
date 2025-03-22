@@ -285,7 +285,7 @@ float ComplexNonLinear(float x)
 
 // These matter to precision.
 #define COMPLEX_OUTPUT_CLAMP 100000000
-#define PRODUCT_VALUE_SCALE_MULTIPLIER 0.00001
+#define PRODUCT_VALUE_SCALE_MULTIPLIER 0.000001
 
 int complexRounds = 0;
 
@@ -329,6 +329,12 @@ void generateHoohashMatrix(uint8_t *hash, float mat[64][64])
     // printf("]\n");
 }
 
+double TransformFactor(uint64_t x)
+{
+    const double granularity = 1024.0;
+    return fmod((double)x, granularity) / granularity;
+}
+
 void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce)
 {
     uint8_t vector[64] = {0};
@@ -362,8 +368,9 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     {
         for (int j = 0; j < 64; j++)
         {
-            int sw = (nonce ^ ((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32])) % 100;
-            if (sw <= 2)
+            // int sw = (nonce ^ ((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32])) % 100;
+            double sw = TransformFactor((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32]);
+            if (sw <= 0.02)
             {
                 forComplexCalls++;
                 product[i] += ForComplex(mat[i][j] * modifier * vector[j]);
@@ -377,12 +384,12 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
     printf("ComplexRounds %d\n", complexRounds);
     printf("ForComplex called! %d\n", forComplexCalls);
     printf("\n");
-    // printf("Product: [");
-    // for (int i = 0; i < 64; i++)
-    // {
-    //     printf("%f, ", product[i]);
-    // }
-    // printf("]\n");
+    printf("Product: [");
+    for (int i = 0; i < 64; i++)
+    {
+        printf("%f, ", product[i]);
+    }
+    printf("]\n");
 
     // XOR the hash with product values, before using as input for final blake3 pass.
     printf("Final pass: [");
