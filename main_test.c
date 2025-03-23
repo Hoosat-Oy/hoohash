@@ -73,7 +73,6 @@ void runTestData()
             printf("Input Timestamp: %ld\n", state.Timestamp);
             printf("Input Nonce: %lu\n", state.Nonce);
             generateHoohashMatrix(prePowHash, state.mat);
-            printf("Matrix generated.");
             miningAlgorithm(&state);
         }
         for (int i = 0; i < 5; i++)

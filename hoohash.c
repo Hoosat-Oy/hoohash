@@ -203,7 +203,7 @@ uint64_t xoshiro_gen(xoshiro_state *x)
 // Complex nonlinear transformations
 double MediumComplexNonLinear(double x)
 {
-    return expf(sinf(x) + cosf(x));
+    return exp(sin(x) + cos(x));
 }
 
 double IntermediateComplexNonLinear(double x)
@@ -212,79 +212,78 @@ double IntermediateComplexNonLinear(double x)
     {
         return 0; // Avoid singularity
     }
-    double si = sinf(x);
-    double co = cosf(x);
-    printf("%f %f %f\n", x, si, co);
-    return sinf(x) * cosf(x) * tanf(x);
+    return sin(x) * cos(x) * tan(x);
 }
 
 double HighComplexNonLinear(double x)
 {
-    return expf(x) * logf(x + 1);
+    return exp(x) * log(x + 1);
 }
 
 #define COMPLEX_TRANSFORM_MULTIPLIER 0.000001
 
 double ComplexNonLinear(double x)
 {
-    double transformFactor = fmodf(x * COMPLEX_TRANSFORM_MULTIPLIER, 4) / 4;
-    printf("Transformfactor %f\n", transformFactor);
-    if (x < 1000)
+    double transformFactorOne = fmod(x * COMPLEX_TRANSFORM_MULTIPLIER, 8) / 8;
+    double transformFactorTwo = fmod(x * COMPLEX_TRANSFORM_MULTIPLIER, 4) / 4;
+    printf("%f\n", transformFactorOne);
+    printf("%f\n", transformFactorTwo);
+    if (transformFactorOne < 0.33)
     {
 
-        if (transformFactor < 0.25)
+        if (transformFactorTwo < 0.25)
         {
-            return MediumComplexNonLinear(x + (1 + transformFactor));
+            return MediumComplexNonLinear(x + (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.5)
+        else if (transformFactorTwo < 0.5)
         {
-            return MediumComplexNonLinear(x - (1 + transformFactor));
+            return MediumComplexNonLinear(x - (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.75)
+        else if (transformFactorTwo < 0.75)
         {
-            return MediumComplexNonLinear(x * (1 + transformFactor));
+            return MediumComplexNonLinear(x * (1 + transformFactorTwo));
         }
         else
         {
-            return MediumComplexNonLinear(x / (1 + transformFactor));
+            return MediumComplexNonLinear(x / (1 + transformFactorTwo));
         }
     }
-    else if (x < 1000000)
+    else if (transformFactorOne < 0.66)
     {
-        if (transformFactor < 0.25)
+        if (transformFactorTwo < 0.25)
         {
-            return IntermediateComplexNonLinear(x + (1 + transformFactor));
+            return IntermediateComplexNonLinear(x + (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.5)
+        else if (transformFactorTwo < 0.5)
         {
-            return IntermediateComplexNonLinear(x - (1 + transformFactor));
+            return IntermediateComplexNonLinear(x - (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.75)
+        else if (transformFactorTwo < 0.75)
         {
-            return IntermediateComplexNonLinear(x * (1 + transformFactor));
+            return IntermediateComplexNonLinear(x * (1 + transformFactorTwo));
         }
         else
         {
-            return IntermediateComplexNonLinear(x / (1 + transformFactor));
+            return IntermediateComplexNonLinear(x / (1 + transformFactorTwo));
         }
     }
     else
     {
-        if (transformFactor < 0.25)
+        if (transformFactorTwo < 0.25)
         {
-            return HighComplexNonLinear(x + (1 + transformFactor));
+            return HighComplexNonLinear(x + (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.5)
+        else if (transformFactorTwo < 0.5)
         {
-            return HighComplexNonLinear(x - (1 + transformFactor));
+            return HighComplexNonLinear(x - (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.75)
+        else if (transformFactorTwo < 0.75)
         {
-            return HighComplexNonLinear(x * (1 + transformFactor));
+            return HighComplexNonLinear(x * (1 + transformFactorTwo));
         }
         else
         {
-            return HighComplexNonLinear(x / (1 + transformFactor));
+            return HighComplexNonLinear(x / (1 + transformFactorTwo));
         }
     }
 }
@@ -300,12 +299,10 @@ double ForComplex(double forComplex)
     double complex;
     double rounds = 1;
     complex = ComplexNonLinear(forComplex);
-    while (complex >= COMPLEX_OUTPUT_CLAMP)
+    while (isnan(complex) || isinf(complex))
     {
         forComplex = forComplex * 0.1;
         rounds++;
-        complex = ComplexNonLinear(forComplex);
-        printf("Input %f, Output %f\n", forComplex, complex);
     }
     return complex * (double)rounds;
 }
@@ -313,16 +310,14 @@ double ForComplex(double forComplex)
 void generateHoohashMatrix(uint8_t *hash, double mat[64][64])
 {
     xoshiro_state state = xoshiro_init(hash);
-    double normalize = 100000000.f;
+    double normalize = 1000000.f;
     for (int i = 0; i < 64; i++)
     {
         for (int j = 0; j < 64; j++)
         {
-            double matrix_val;
             uint64_t val = xoshiro_gen(&state);
             uint32_t lower_4_bytes = val & 0xFFFFFFFF;
-            matrix_val = (double)(lower_4_bytes) / (double)UINT32_MAX * (normalize * 2) - normalize;
-            mat[i][j] = matrix_val;
+            mat[i][j] = (double)lower_4_bytes / (double)UINT32_MAX * normalize;
         }
     }
 }
@@ -330,7 +325,7 @@ void generateHoohashMatrix(uint8_t *hash, double mat[64][64])
 double TransformFactor(uint64_t x)
 {
     const double granularity = 1024.0;
-    return fmodf((double)x, granularity) / granularity;
+    return fmod((double)x, granularity) / granularity;
 }
 
 void ConvertBytesToUint32Array(uint32_t *H, const uint8_t *bytes)
@@ -352,8 +347,9 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
     uint8_t result[32] = {0};
     uint32_t H[8] = {0};
     ConvertBytesToUint32Array(H, hashBytes);
-    double modifierHigh = (double)((nonce >> 32) ^ H[0] ^ H[1] ^ H[2] ^ H[3] ^ H[4] ^ H[5] ^ H[6] ^ H[7]);
-    double modifierLow = (double)(nonce & 0xFFFFFFFF);
+    double dividerOne = 0.001;
+    double hashMod = (double)(H[0] ^ H[1] ^ H[2] ^ H[3] ^ H[4] ^ H[5] ^ H[6] ^ H[7]) * dividerOne;
+    double nonceMod = (nonce & 0xFF) * dividerOne;
 
     for (int i = 0; i < 32; i++)
     {
@@ -368,38 +364,27 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
             double sw = TransformFactor((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32]);
             if (sw <= 0.02)
             {
-                double input = (mat[i][j] + modifierHigh) + ((double)vector[j] * modifierLow);
-                double output = ForComplex(input);
+                double input = (mat[i][j] * nonceMod * (double)vector[j] + hashMod);
+                printf("%f\n", input);
+                double output = ForComplex(input) * (double)vector[j];
                 product[i] += output;
-                printf("[%d][%d]: %f %f %f %f %f %f\n", i, j, mat[i][j], modifierHigh, (double)vector[j], modifierLow, input, output);
+                printf("[%d][%d]: %f %f %f %f %f %f\n", i, j, mat[i][j], (double)vector[j], hashMod, nonceMod, input, output);
             }
             else
             {
-                product[i] += mat[i][j] * (double)vector[j];
+                product[i] += mat[i][j] * dividerOne * (double)vector[j];
             }
         }
     }
     printf("\n");
 
-    printf("Product: [");
-    for (int i = 0; i < 64; i++)
-    {
-        // Print each element with 2 decimal places
-        printf("%.3f, ", product[i]);
-    }
-    printf("]\n");
-
     for (int i = 0; i < 64; i += 2)
     {
-        scaledValues[i / 2] = (uint8_t)((product[i] + product[i + 1]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
+        uint64_t pval = (uint64_t)product[i] + (uint64_t)product[i + 1];
+        scaledValues[i / 2] = (uint8_t)(pval & 0xFF);
+        printf("[%u] -> %f + %f -> %ld -> %u\n", i / 2, product[i], product[i + 1], pval, scaledValues[i / 2]);
     }
 
-    printf("Scaled values: [");
-    for (int i = 0; i < 32; i++)
-    {
-        printf("%d, ", scaledValues[i]);
-    }
-    printf("]\n");
     printf("Final pass: [");
     for (int i = 0; i < 32; i++)
     {
