@@ -293,12 +293,10 @@ float ForComplex(float forComplex)
 {
     float complex;
     float rounds = 0;
-    float complexStart = forComplex;
     complex = ComplexNonLinear(forComplex);
     while (complex >= COMPLEX_OUTPUT_CLAMP)
     {
         forComplex = forComplex * 0.1;
-        complexRounds++;
         rounds++;
         complex = ComplexNonLinear(forComplex);
     }
@@ -337,43 +335,27 @@ double TransformFactor(uint64_t x)
 
 void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce)
 {
+    uint8_t scaledValues[32] = {0};
     uint8_t vector[64] = {0};
     float product[64] = {0};
-    float modifier = (float)(nonce & 4294967295 /*(2 ^ 32 - 1)*/);
+    uint8_t result[32] = {0};
+    float modifierHigh = (float)(nonce >> 32);
+    float modifierLow = (float)(nonce & 0xFFFFFFFF);
 
-    // Populate the vector with floating-point values
     for (int i = 0; i < 32; i++)
     {
         vector[2 * i] = hashBytes[i] >> 4;
         vector[2 * i + 1] = hashBytes[i] & 0x0F;
     }
-    // printf("Matrix[0]: ");
-    // for (int i = 0; i < 64; i++)
-    // {
-    //     printf("%f, ", mat[0][i]);
-    // }
-    // printf("\n");
-    // printf("Vector: [");
-    // for (int i = 0; i < 64; i++)
-    // {
-    //     printf("%d ", vector[i]);
-    // }
-    // printf("]\n");
 
-    // Matrix-vector multiplication with floating point operations
-    int forComplexCalls = 0;
-    complexRounds = 0;
-    // printf("For Complex: ");
     for (int i = 0; i < 64; i++)
     {
         for (int j = 0; j < 64; j++)
         {
-            // int sw = (nonce ^ ((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32])) % 100;
             double sw = TransformFactor((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32]);
             if (sw <= 0.02)
             {
-                forComplexCalls++;
-                product[i] += ForComplex(mat[i][j] * modifier * vector[j]);
+                product[i] += ForComplex(mat[i][j] * modifierHigh * vector[j] * modifierLow);
             }
             else
             {
@@ -381,36 +363,17 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             }
         }
     }
-    printf("ComplexRounds %d\n", complexRounds);
-    printf("ForComplex called! %d\n", forComplexCalls);
-    printf("\n");
-    printf("Product: [");
-    for (int i = 0; i < 64; i++)
-    {
-        printf("%f, ", product[i]);
-    }
-    printf("]\n");
-
-    // XOR the hash with product values, before using as input for final blake3 pass.
-    printf("Final pass: [");
-    uint8_t res[32] = {0};
-    // combine and scale product values
-    uint8_t scaledValues[32] = {0};
     for (int i = 0; i < 64; i += 2)
     {
         scaledValues[i / 2] = (uint8_t)((product[i] + product[i + 1]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
     }
-    // Xor with prehash
     for (int i = 0; i < 32; i++)
     {
-        res[i] = hashBytes[i] ^ scaledValues[i];
-        printf("%d, ", res[i]);
+        result[i] = hashBytes[i] ^ scaledValues[i];
     }
-    printf("]\n");
-    // Hash again using BLAKE3
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, res, DOMAIN_HASH_SIZE);
+    blake3_hasher_update(&hasher, result, DOMAIN_HASH_SIZE);
     blake3_hasher_finalize(&hasher, output, DOMAIN_HASH_SIZE);
 }
 
