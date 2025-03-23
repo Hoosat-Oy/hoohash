@@ -41,6 +41,7 @@ void miningAlgorithm(State *state)
 
 void runTestData()
 {
+    fesetround(FE_TONEAREST);
     State state;
     {
         printf("-------------------------------------------------------------------------------------\n");
@@ -69,8 +70,8 @@ void runTestData()
             memcpy(state.prePowHash, prePowHash, DOMAIN_HASH_SIZE);
             state.Timestamp = 1725374568455;
             state.Nonce = i;
-            printf("Input Timestamp: %lld\n", state.Timestamp);
-            printf("Input Nonce: %llu\n", state.Nonce);
+            printf("Input Timestamp: %ld\n", state.Timestamp);
+            printf("Input Nonce: %lu\n", state.Nonce);
             generateHoohashMatrix(prePowHash, state.mat);
             printf("Matrix generated.");
             miningAlgorithm(&state);
@@ -85,8 +86,8 @@ void runTestData()
             memcpy(state.prePowHash, prePowHash, DOMAIN_HASH_SIZE);
             state.Timestamp = 1725374568455;
             state.Nonce = i;
-            printf("Input Timestamp: %lld\n", state.Timestamp);
-            printf("Input Nonce: %llu\n", state.Nonce);
+            printf("Input Timestamp: %ld\n", state.Timestamp);
+            printf("Input Nonce: %lu\n", state.Nonce);
             generateHoohashMatrix(prePowHash, state.mat);
             miningAlgorithm(&state);
         }
@@ -100,8 +101,8 @@ void runTestData()
             memcpy(state.prePowHash, prePowHash, DOMAIN_HASH_SIZE);
             state.Timestamp = 1725374568455;
             state.Nonce = i;
-            printf("Input Timestamp: %lld\n", state.Timestamp);
-            printf("Input Nonce: %llu\n", state.Nonce);
+            printf("Input Timestamp: %ld\n", state.Timestamp);
+            printf("Input Nonce: %lu\n", state.Nonce);
             generateHoohashMatrix(prePowHash, state.mat);
             miningAlgorithm(&state);
         }
@@ -113,8 +114,8 @@ void runTestData()
         memcpy(state.prePowHash, prePowHash, DOMAIN_HASH_SIZE);
         state.Timestamp = 1727011258677;
         state.Nonce = 7794931619413402210;
-        printf("Input Timestamp: %lld\n", state.Timestamp);
-        printf("Input Nonce: %llu\n", state.Nonce);
+        printf("Input Timestamp: %ld\n", state.Timestamp);
+        printf("Input Nonce: %lu\n", state.Nonce);
         generateHoohashMatrix(prePowHash, state.mat);
         miningAlgorithm(&state);
     }

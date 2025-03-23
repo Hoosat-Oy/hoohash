@@ -1,6 +1,6 @@
 # Define the compiler and flags
 CC = gcc
-CFLAGS = -fPIC
+CFLAGS = -fPIC -g -Wall -Wextra  # Add debugging flags
 LDFLAGS = -shared
 
 # Source files

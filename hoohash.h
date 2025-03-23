@@ -45,7 +45,7 @@
 // Define the State structure used in the mining algorithm
 typedef struct
 {
-    float mat[64][64];
+    double mat[64][64];
     int64_t Timestamp;
     uint64_t Nonce;
     uint8_t Target[DOMAIN_HASH_SIZE];
@@ -74,16 +74,16 @@ uint8_t *decodeHex(const char *hexStr, size_t *outSize);
 void split_uint8_array_to_uint64(const uint8_t arr[32], uint64_t out[4]);
 
 // Function to initialize the xoshiro state from a byte array
-static inline xoshiro_state xoshiro_init(const uint8_t *bytes);
+xoshiro_state xoshiro_init(const uint8_t *bytes);
 
 // Function to generate a 64-bit integer from the xoshiro state
-static inline uint64_t xoshiro_gen(xoshiro_state *x);
+uint64_t xoshiro_gen(xoshiro_state *x);
 
 // Function to generate the Hoohash matrix
-void generateHoohashMatrix(uint8_t *hash, float mat[64][64]);
+void generateHoohashMatrix(uint8_t *hash, double mat[64][64]);
 
 // Function to perform matrix multiplication with the Hoohash matrix
-void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce);
+void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce);
 
 // Function to calculate the proof of work value
 void CalculateProofOfWorkValue(State *state, uint8_t *result);

@@ -1,6 +1,6 @@
 # Hoohash documentation
 
-Hoohash is novel proof of work hashing algorithm. The primary functionality includes floating point arithmetic, blake3 hashing, matrix operations, non-linear transformations.
+Hoohash is novel proof of work hashing algorithm. The primary functionality includes doubleing point arithmetic, blake3 hashing, matrix operations, non-linear transformations.
 
 ## License
 
@@ -60,9 +60,11 @@ This will create the `build/main-test` executable, which can be run as follows:
 ## Key Functions
 
 ### 1. `generateHoohashMatrix`
+
 Generates a 64x64 matrix based on random values derived from a given hash input using the xoshiro PRNG. The matrix is populated and processed until its rank reaches 64.
 
 ### 3. `CalculateProofOfWorkValue`
+
 Generates a proof-of-work value using a combination of the Hoohash matrix multiplication and a series of hashing steps. The function combines multiple inputs, including a pre-computed hash, timestamp, and nonce, to compute a final result.
 
 ## Dependencies
@@ -72,7 +74,7 @@ Generates a proof-of-work value using a combination of the Hoohash matrix multip
 - **stdlib.h**: Used for dynamic memory allocation and other standard utilities.
 - **stdint.h**: Provides fixed-width integer types like `uint8_t` and `uint64_t`.
 - **endian.h**: Provides macros for detecting and converting between different endianness formats.
-- **fenv.h**: Used for manipulating and querying the floating-point environment, such as rounding behavior.
+- **fenv.h**: Used for manipulating and querying the doubleing-point environment, such as rounding behavior.
 
 ## Example
 

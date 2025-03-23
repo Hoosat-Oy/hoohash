@@ -28,7 +28,6 @@
 #include <stdio.h>
 #include <math.h>
 #include <blake3.h>
-#include <float.h>
 #include "bigint.h"
 #include "hoohash.h"
 
@@ -169,7 +168,7 @@ void split_uint8_array_to_uint64(const uint8_t arr[32], uint64_t out[4])
     }
 }
 
-static inline xoshiro_state xoshiro_init(const uint8_t *bytes)
+xoshiro_state xoshiro_init(const uint8_t *bytes)
 {
     xoshiro_state state;
     // Copy the 32 bytes (256 bits) from hashArray into the state variables
@@ -180,12 +179,12 @@ static inline xoshiro_state xoshiro_init(const uint8_t *bytes)
     return state;
 }
 
-static inline uint64_t rotl64(const uint64_t x, int k)
+uint64_t rotl64(const uint64_t x, int k)
 {
     return (x << k) | (x >> (64 - k));
 }
 
-static inline uint64_t xoshiro_gen(xoshiro_state *x)
+uint64_t xoshiro_gen(xoshiro_state *x)
 {
     uint64_t res = rotl64(x->s0 + x->s3, 23) + x->s0;
     uint64_t t = x->s1 << 17;
@@ -202,30 +201,37 @@ static inline uint64_t xoshiro_gen(xoshiro_state *x)
 }
 
 // Complex nonlinear transformations
-float MediumComplexNonLinear(float x)
+double MediumComplexNonLinear(double x)
 {
-    return exp(sin(x) + cos(x));
+    return expf(sinf(x) + cosf(x));
 }
 
-float IntermediateComplexNonLinear(float x)
+double IntermediateComplexNonLinear(double x)
 {
     if (x == PI / 2 || x == 3 * PI / 2)
     {
         return 0; // Avoid singularity
     }
-    return sin(x) * cos(x) * tan(x);
+    double si = sinf(x);
+    double co = cosf(x);
+    printf("%f %f %f\n", x, si, co);
+    return sinf(x) * cosf(x) * tanf(x);
 }
 
-float HighComplexNonLinear(float x)
+double HighComplexNonLinear(double x)
 {
-    return exp(x) * log(x + 1);
+    return expf(x) * logf(x + 1);
 }
 
-float ComplexNonLinear(float x)
+#define COMPLEX_TRANSFORM_MULTIPLIER 0.000001
+
+double ComplexNonLinear(double x)
 {
-    float transformFactor = fmod(x, 4) / 4;
-    if (x < 1)
+    double transformFactor = fmodf(x * COMPLEX_TRANSFORM_MULTIPLIER, 4) / 4;
+    printf("Transformfactor %f\n", transformFactor);
+    if (x < 1000)
     {
+
         if (transformFactor < 0.25)
         {
             return MediumComplexNonLinear(x + (1 + transformFactor));
@@ -243,7 +249,7 @@ float ComplexNonLinear(float x)
             return MediumComplexNonLinear(x / (1 + transformFactor));
         }
     }
-    else if (x < 10)
+    else if (x < 1000000)
     {
         if (transformFactor < 0.25)
         {
@@ -284,63 +290,70 @@ float ComplexNonLinear(float x)
 }
 
 // These matter to precision.
-#define COMPLEX_OUTPUT_CLAMP 100000000
-#define PRODUCT_VALUE_SCALE_MULTIPLIER 0.000001
+#define COMPLEX_OUTPUT_CLAMP 1000000000
+#define PRODUCT_VALUE_SCALE_MULTIPLIER 0.1
 
 int complexRounds = 0;
 
-float ForComplex(float forComplex)
+double ForComplex(double forComplex)
 {
-    float complex;
-    float rounds = 0;
+    double complex;
+    double rounds = 1;
     complex = ComplexNonLinear(forComplex);
     while (complex >= COMPLEX_OUTPUT_CLAMP)
     {
         forComplex = forComplex * 0.1;
         rounds++;
         complex = ComplexNonLinear(forComplex);
+        printf("Input %f, Output %f\n", forComplex, complex);
     }
-    return complex * (float)rounds;
+    return complex * (double)rounds;
 }
 
-void generateHoohashMatrix(uint8_t *hash, float mat[64][64])
+void generateHoohashMatrix(uint8_t *hash, double mat[64][64])
 {
     xoshiro_state state = xoshiro_init(hash);
-    float normalize = 100000000.f;
+    double normalize = 100000000.f;
     for (int i = 0; i < 64; i++)
     {
         for (int j = 0; j < 64; j++)
         {
-            float matrix_val;
+            double matrix_val;
             uint64_t val = xoshiro_gen(&state);
             uint32_t lower_4_bytes = val & 0xFFFFFFFF;
-            matrix_val = (float)(lower_4_bytes) / (float)UINT32_MAX * (normalize * 2) - normalize;
-            // printf("mat[%d][%d]: %f\n", i, j, matrix_val);
+            matrix_val = (double)(lower_4_bytes) / (double)UINT32_MAX * (normalize * 2) - normalize;
             mat[i][j] = matrix_val;
         }
     }
-    // printf("Matrix: [");
-    // for (int i = 0; i < 64; i++)
-    // {
-    //     printf("%f ", mat[0][i]);
-    // }
-    // printf("]\n");
 }
 
 double TransformFactor(uint64_t x)
 {
     const double granularity = 1024.0;
-    return fmod((double)x, granularity) / granularity;
+    return fmodf((double)x, granularity) / granularity;
 }
 
-void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce)
+void ConvertBytesToUint32Array(uint32_t *H, const uint8_t *bytes)
+{
+    for (int i = 0; i < 8; i++)
+    {
+        H[i] = ((uint32_t)bytes[i * 4] << 24) |
+               ((uint32_t)bytes[i * 4 + 1] << 16) |
+               ((uint32_t)bytes[i * 4 + 2] << 8) |
+               (uint32_t)bytes[i * 4 + 3];
+    }
+}
+
+void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce)
 {
     uint8_t scaledValues[32] = {0};
     uint8_t vector[64] = {0};
-    float product[64] = {0};
+    double product[64] = {0};
     uint8_t result[32] = {0};
-    float modifierHigh = (float)(nonce >> 32);
-    float modifierLow = (float)(nonce & 0xFFFFFFFF);
+    uint32_t H[8] = {0};
+    ConvertBytesToUint32Array(H, hashBytes);
+    double modifierHigh = (double)((nonce >> 32) ^ H[0] ^ H[1] ^ H[2] ^ H[3] ^ H[4] ^ H[5] ^ H[6] ^ H[7]);
+    double modifierLow = (double)(nonce & 0xFFFFFFFF);
 
     for (int i = 0; i < 32; i++)
     {
@@ -355,22 +368,45 @@ void HoohashMatrixMultiplication(float mat[64][64], const uint8_t *hashBytes, ui
             double sw = TransformFactor((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32]);
             if (sw <= 0.02)
             {
-                product[i] += ForComplex(mat[i][j] * modifierHigh * vector[j] * modifierLow);
+                double input = (mat[i][j] + modifierHigh) + ((double)vector[j] * modifierLow);
+                double output = ForComplex(input);
+                product[i] += output;
+                printf("[%d][%d]: %f %f %f %f %f %f\n", i, j, mat[i][j], modifierHigh, (double)vector[j], modifierLow, input, output);
             }
             else
             {
-                product[i] += mat[i][j] * vector[j];
+                product[i] += mat[i][j] * (double)vector[j];
             }
         }
     }
+    printf("\n");
+
+    printf("Product: [");
+    for (int i = 0; i < 64; i++)
+    {
+        // Print each element with 2 decimal places
+        printf("%.3f, ", product[i]);
+    }
+    printf("]\n");
+
     for (int i = 0; i < 64; i += 2)
     {
         scaledValues[i / 2] = (uint8_t)((product[i] + product[i + 1]) * PRODUCT_VALUE_SCALE_MULTIPLIER);
     }
+
+    printf("Scaled values: [");
+    for (int i = 0; i < 32; i++)
+    {
+        printf("%d, ", scaledValues[i]);
+    }
+    printf("]\n");
+    printf("Final pass: [");
     for (int i = 0; i < 32; i++)
     {
         result[i] = hashBytes[i] ^ scaledValues[i];
+        printf("%d, ", result[i]);
     }
+    printf("]\n");
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
     blake3_hasher_update(&hasher, result, DOMAIN_HASH_SIZE);
