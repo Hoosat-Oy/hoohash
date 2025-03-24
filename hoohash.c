@@ -226,8 +226,8 @@ double ComplexNonLinear(double x)
 {
     double transformFactorOne = fmod(x * COMPLEX_TRANSFORM_MULTIPLIER, 8) / 8;
     double transformFactorTwo = fmod(x * COMPLEX_TRANSFORM_MULTIPLIER, 4) / 4;
-    printf("%f\n", transformFactorOne);
-    printf("%f\n", transformFactorTwo);
+    // printf("%f\n", transformFactorOne);
+    // printf("%f\n", transformFactorTwo);
     if (transformFactorOne < 0.33)
     {
 
@@ -302,7 +302,12 @@ double ForComplex(double forComplex)
     while (isnan(complex) || isinf(complex))
     {
         forComplex = forComplex * 0.1;
+        if (forComplex <= 0.0000000000001)
+        {
+            return 0 * (double)rounds;
+        }
         rounds++;
+        printf("[forComplex] Input %0.64f, Output %0.12f\n", forComplex, complex);
     }
     return complex * (double)rounds;
 }
@@ -365,7 +370,7 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
             if (sw <= 0.02)
             {
                 double input = (mat[i][j] * nonceMod * (double)vector[j] + hashMod);
-                printf("%f\n", input);
+                // printf("%f\n", input);
                 double output = ForComplex(input) * (double)vector[j];
                 product[i] += output;
                 printf("[%d][%d]: %f %f %f %f %f %f\n", i, j, mat[i][j], (double)vector[j], hashMod, nonceMod, input, output);
@@ -382,16 +387,16 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
     {
         uint64_t pval = (uint64_t)product[i] + (uint64_t)product[i + 1];
         scaledValues[i / 2] = (uint8_t)(pval & 0xFF);
-        printf("[%u] -> %f + %f -> %ld -> %u\n", i / 2, product[i], product[i + 1], pval, scaledValues[i / 2]);
+        // printf("[%u] -> %f + %f -> %ld -> %u\n", i / 2, product[i], product[i + 1], pval, scaledValues[i / 2]);
     }
 
-    printf("Final pass: [");
+    // printf("Final pass: [");
     for (int i = 0; i < 32; i++)
     {
         result[i] = hashBytes[i] ^ scaledValues[i];
-        printf("%d, ", result[i]);
+        // printf("%d, ", result[i]);
     }
-    printf("]\n");
+    // printf("]\n");
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
     blake3_hasher_update(&hasher, result, DOMAIN_HASH_SIZE);

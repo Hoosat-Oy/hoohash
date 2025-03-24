@@ -89,7 +89,7 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
 void CalculateProofOfWorkValue(State *state, uint8_t *result);
 
 // Function to run the mining algorithm
-void miningAlgorithm(State *state);
+void miningAlgorithm(State *state, uint8_t *result);
 
 // Function to run test data for the mining algorithm
 void runTestData();
