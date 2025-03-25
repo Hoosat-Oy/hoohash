@@ -114,9 +114,9 @@ void runTestData()
             char *resultHex = encodeHex(result, DOMAIN_HASH_SIZE);
             printf("Actual Output (Hex): %s\n", encodeHex(result, DOMAIN_HASH_SIZE));
         }
-        for (int i = 0; i < 180; i++)
+        for (int i = 0; i < 1000; i++)
         {
-            for (int x = 0; x < 200; x++)
+            for (int x = 0; x < 1000; x++)
             {
                 printf("-------------------------------------------------------------------------------------\n");
                 uint8_t prePowHash[DOMAIN_HASH_SIZE] = {
