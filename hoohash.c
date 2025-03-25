@@ -217,7 +217,7 @@ double IntermediateComplexNonLinear(double x)
 
 double HighComplexNonLinear(double x)
 {
-    return exp(x) * log(x + 1);
+    return 1.0 / sqrt(fabs(x) + 1);
 }
 
 #define COMPLEX_TRANSFORM_MULTIPLIER 0.000001
@@ -352,9 +352,8 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
     uint8_t result[32] = {0};
     uint32_t H[8] = {0};
     ConvertBytesToUint32Array(H, hashBytes);
-    double dividerOne = 0.001;
-    double hashMod = (double)(H[0] ^ H[1] ^ H[2] ^ H[3] ^ H[4] ^ H[5] ^ H[6] ^ H[7]) * dividerOne;
-    double nonceMod = (nonce & 0xFF) * dividerOne;
+    double hashMod = (double)(H[0] ^ H[1] ^ H[2] ^ H[3] ^ H[4] ^ H[5] ^ H[6] ^ H[7]);
+    double nonceMod = (nonce & 0xFF);
 
     for (int i = 0; i < 32; i++)
     {
@@ -377,7 +376,7 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
             }
             else
             {
-                product[i] += mat[i][j] * dividerOne * (double)vector[j];
+                product[i] += mat[i][j] * (double)vector[j];
             }
         }
     }
