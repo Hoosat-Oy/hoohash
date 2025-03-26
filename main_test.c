@@ -114,28 +114,28 @@ void runTestData()
             char *resultHex = encodeHex(result, DOMAIN_HASH_SIZE);
             printf("Actual Output (Hex): %s\n", encodeHex(result, DOMAIN_HASH_SIZE));
         }
-        for (int i = 0; i < 1000; i++)
-        {
-            for (int x = 0; x < 1000; x++)
-            {
-                printf("-------------------------------------------------------------------------------------\n");
-                uint8_t prePowHash[DOMAIN_HASH_SIZE] = {
-                    0xb7, 0xc8, 0xf4, 0x3d, 0x8a, 0x99, 0xae, 0xcd, 0xd3, 0x79, 0x12, 0xc9, 0xad, 0x4f, 0x2e, 0x51, 0xc8, 0x00, 0x9f, 0x7c, 0xe1, 0xcd, 0xf6, 0xe3, 0xbe, 0x27, 0x67, 0x97, 0x2c, 0xc6, 0x8a, 0x1c};
-                printf("Test Case %i:\n", i * x);
-                printf("Input prePowHash: %s\n", encodeHex(prePowHash, DOMAIN_HASH_SIZE));
-                memcpy(state.prePowHash, prePowHash, DOMAIN_HASH_SIZE);
-                state.Timestamp = 172537456 + i;
-                state.Nonce = x;
-                printf("Input Timestamp: %ld\n", state.Timestamp);
-                printf("Input Nonce: %lu\n", state.Nonce);
-                generateHoohashMatrix(prePowHash, state.mat);
-                miningAlgorithm(&state, result);
-                char *resultHex = encodeHex(result, DOMAIN_HASH_SIZE);
-                printf("Actual Output (Hex): %s\n", resultHex);
-                fprintf(file, "%s\n", resultHex);
-                free(resultHex);
-            }
-        }
+        // for (int i = 0; i < 1000; i++)
+        // {
+        //     for (int x = 0; x < 1000; x++)
+        //     {
+        //         printf("-------------------------------------------------------------------------------------\n");
+        //         uint8_t prePowHash[DOMAIN_HASH_SIZE] = {
+        //             0xb7, 0xc8, 0xf4, 0x3d, 0x8a, 0x99, 0xae, 0xcd, 0xd3, 0x79, 0x12, 0xc9, 0xad, 0x4f, 0x2e, 0x51, 0xc8, 0x00, 0x9f, 0x7c, 0xe1, 0xcd, 0xf6, 0xe3, 0xbe, 0x27, 0x67, 0x97, 0x2c, 0xc6, 0x8a, 0x1c};
+        //         printf("Test Case %i:\n", i * x);
+        //         printf("Input prePowHash: %s\n", encodeHex(prePowHash, DOMAIN_HASH_SIZE));
+        //         memcpy(state.prePowHash, prePowHash, DOMAIN_HASH_SIZE);
+        //         state.Timestamp = 172537456 + i;
+        //         state.Nonce = x;
+        //         printf("Input Timestamp: %ld\n", state.Timestamp);
+        //         printf("Input Nonce: %lu\n", state.Nonce);
+        //         generateHoohashMatrix(prePowHash, state.mat);
+        //         miningAlgorithm(&state, result);
+        //         char *resultHex = encodeHex(result, DOMAIN_HASH_SIZE);
+        //         printf("Actual Output (Hex): %s\n", resultHex);
+        //         fprintf(file, "%s\n", resultHex);
+        //         free(resultHex);
+        //     }
+        // }
         printf("-------------------------------------------------------------------------------------\n");
         uint8_t prePowHash[DOMAIN_HASH_SIZE] = {
             0x82, 0xb1, 0xd1, 0x7c, 0x5e, 0x22, 0x00, 0xa0, 0x56, 0x59, 0x56, 0xb7, 0x11, 0x48, 0x5a, 0x2c, 0xba, 0x6d, 0xa9, 0x09, 0xe5, 0x88, 0x26, 0x15, 0x82, 0xc2, 0xf4, 0x65, 0xec, 0x2e, 0x3d, 0x3f};

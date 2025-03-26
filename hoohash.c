@@ -354,7 +354,8 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
     ConvertBytesToUint32Array(H, hashBytes);
     double hashMod = (double)(H[0] ^ H[1] ^ H[2] ^ H[3] ^ H[4] ^ H[5] ^ H[6] ^ H[7]);
     double nonceMod = (nonce & 0xFF);
-    double divider = 0.001;
+    double divider = 0.0001;
+    double multiplier = 1234;
 
     for (int i = 0; i < 32; i++)
     {
@@ -371,17 +372,24 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
             {
                 double input = (mat[i][j] * nonceMod * (double)vector[j] + hashMod);
                 // printf("%f\n", input);
-                double output = ForComplex(input) * (double)vector[j];
+                double output = ForComplex(input) * (double)vector[j] * multiplier;
                 product[i] += output;
                 printf("[%d][%d]: %f %f %f %f %f %f\n", i, j, mat[i][j], (double)vector[j], hashMod, nonceMod, input, output);
             }
             else
             {
-                product[i] += mat[i][j] * divider * (double)vector[j];
+                double output = mat[i][j] * divider * (double)vector[j];
+                product[i] += output;
+                // printf("[%d][%d]: %f %f %f\n", i, j, mat[i][j], (double)vector[j], output);
             }
         }
     }
     printf("\n");
+
+    for (int i = 0; i < 64; i++)
+    {
+        printf("[%d]: %f\n", i, product[i]);
+    }
 
     for (int i = 0; i < 64; i += 2)
     {
