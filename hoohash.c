@@ -327,10 +327,10 @@ void generateHoohashMatrix(uint8_t *hash, double mat[64][64])
     }
 }
 
-double TransformFactor(uint64_t x)
+double TransformFactor(double x)
 {
     const double granularity = 1024.0;
-    return fmod((double)x, granularity) / granularity;
+    return fmod(x, granularity) / granularity;
 }
 
 void ConvertBytesToUint32Array(uint32_t *H, const uint8_t *bytes)
@@ -356,6 +356,7 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
     double nonceMod = (nonce & 0xFF);
     double divider = 0.0001;
     double multiplier = 1234;
+    double sw = 0.0;
 
     for (int i = 0; i < 32; i++)
     {
@@ -367,10 +368,9 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
     {
         for (int j = 0; j < 64; j++)
         {
-            double sw = TransformFactor((uint64_t)hashBytes[i % 32] * (uint64_t)hashBytes[j % 32]);
             if (sw <= 0.02)
             {
-                double input = (mat[i][j] * nonceMod * (double)vector[j] + hashMod);
+                double input = (mat[i][j] * hashMod * (double)vector[j] + nonceMod);
                 // printf("%f\n", input);
                 double output = ForComplex(input) * (double)vector[j] * multiplier;
                 product[i] += output;
@@ -382,6 +382,7 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
                 product[i] += output;
                 // printf("[%d][%d]: %f %f %f\n", i, j, mat[i][j], (double)vector[j], output);
             }
+            sw = TransformFactor(product[i]);
         }
     }
     printf("\n");

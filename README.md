@@ -1,12 +1,12 @@
 # Hoohash documentation
 
-Hoohash is novel proof of work hashing algorithm. The primary functionality includes doubleing point arithmetic, blake3 hashing, matrix operations, non-linear transformations.
+Hoohash is novel proof of work hashing algorithm. The primary functionality includes double point arithmetic, blake3 hashing, matrix operations, non-linear transformations.
 
 ## License
 
 This software is licensed under the GNU General Public License (GPL) Version 3.0 or later. See the full [license](https://www.gnu.org/licenses/) for details.
 
-- **Author**: Toni Lukkaroinen
+- **Author**: Tonto, Toni Lukkaroinen
 - **Company**: Hoosat Oy
 - **Copyright**: 2024 Hoosat Oy
 
@@ -97,6 +97,14 @@ int main() {
     return 0;
 }
 ```
+
+## Credits
+
+I’d like to acknowledge those who have contributed to the development of Hoohash:
+
+- Doktor83 – Thank you for your valuable assistance with Hoohash v1.0.0 & v1.0.1.
+- Lolliedieb – Appreciate your insight regarding the LUT in v1.0.0 & v1.0.1.
+- EhssanD – Grateful for your thoughtful feedback and support on Hoohash v1.1.0.
 
 ## Conclusion
 
