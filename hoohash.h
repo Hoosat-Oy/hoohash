@@ -49,7 +49,7 @@ typedef struct
     int64_t Timestamp;
     uint64_t Nonce;
     uint8_t Target[DOMAIN_HASH_SIZE];
-    uint8_t prePowHash[DOMAIN_HASH_SIZE];
+    uint8_t PrevHeader[DOMAIN_HASH_SIZE];
 } State;
 
 // Define the xoshiro state structure used in the random number generator

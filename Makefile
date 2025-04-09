@@ -1,6 +1,6 @@
 # Define the compiler and flags
 CC = gcc
-CFLAGS = -fPIC -g -Wall -Wextra  # Add debugging flags
+CFLAGS = -fPIC -g -Wall -Wextra -DTEST
 LDFLAGS = -shared
 
 # Source files
@@ -39,6 +39,15 @@ test: $(BUILD_DIR)/main_test.o $(OBJS) | $(BUILD_DIR)
 $(BUILD_DIR)/main_test.o: main_test.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c main_test.c -o $@
 
+# Rule to build the miner target
+miner: CFLAGS += -DTEST -g
+miner: $(BUILD_DIR)/miner.o $(OBJS) | $(BUILD_DIR)
+	$(CC) -o $(BUILD_DIR)/miner $(OBJS) $(BUILD_DIR)/miner.o -lm -lblake3 -lgmp -ljson-c
+
+# Compile miner.c to object file in the build directory
+$(BUILD_DIR)/miner.o: miner.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c miner.c -o $@
+	
 # Clean rule to remove generated files in the build directory
 clean:
 	rm -rf $(BUILD_DIR)

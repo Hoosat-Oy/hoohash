@@ -374,7 +374,7 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
                 // printf("%f\n", input);
                 double output = ForComplex(input) * (double)vector[j] * multiplier;
                 product[i] += output;
-                printf("[%d][%d]: %f %f %f %f %f %f\n", i, j, mat[i][j], (double)vector[j], hashMod, nonceMod, input, output);
+                // printf("[%d][%d]: %f %f %f %f %f %f\n", i, j, mat[i][j], (double)vector[j], hashMod, nonceMod, input, output);
             }
             else
             {
@@ -385,12 +385,12 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
             sw = TransformFactor(product[i]);
         }
     }
-    printf("\n");
+    // printf("\n");
 
-    for (int i = 0; i < 64; i++)
-    {
-        printf("[%d]: %f\n", i, product[i]);
-    }
+    // for (int i = 0; i < 64; i++)
+    // {
+    //     printf("[%d]: %f\n", i, product[i]);
+    // }
 
     for (int i = 0; i < 64; i += 2)
     {
@@ -421,7 +421,7 @@ void CalculateProofOfWorkValue(State *state, uint8_t *result)
     uint8_t zeroes[DOMAIN_HASH_SIZE] = {0};
 
     blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, state->prePowHash, DOMAIN_HASH_SIZE);
+    blake3_hasher_update(&hasher, state->PrevHeader, DOMAIN_HASH_SIZE);
     // state->Timestamp = le64dec(state->Timestamp);
     blake3_hasher_update(&hasher, &state->Timestamp, sizeof(state->Timestamp));
     blake3_hasher_update(&hasher, zeroes, DOMAIN_HASH_SIZE);
