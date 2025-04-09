@@ -1,53 +1,36 @@
-# Define the compiler and flags
+# Compiler and flags
 CC = gcc
-CFLAGS = -fPIC -g -Wall -Wextra -DTEST
+CFLAGS = -fPIC -g -Wall -Wextra
 LDFLAGS = -shared
 
-# Source files
-SRCS = hoohash.c bigint.c
-
-# Build and output directories
+# Paths
 BUILD_DIR = build
-
-# Object files (replace .c with .o in source files in build folder)
+SRCS = hoohash.c bigint.c
 OBJS = $(SRCS:%.c=$(BUILD_DIR)/%.o)
+TARGET = $(BUILD_DIR)/lib-hoohash.so
+TEST_SRC = main_test.c
+TEST_OBJ = $(BUILD_DIR)/main_test.o
+TEST_BIN = $(BUILD_DIR)/hoohash_test
 
-# Output library name
-TARGET_LIB = $(BUILD_DIR)/lib-hoohash.so
+all: $(TARGET)
 
-# Default rule: build the dynamic library
-all: $(TARGET_LIB)
-
-# Create build directory if it does not exist
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Rule to create the shared library
-$(TARGET_LIB): $(OBJS) | $(BUILD_DIR)
+$(TARGET): $(OBJS) | $(BUILD_DIR)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) -lm -lblake3
 
-# Rule to compile source files into object files in the build directory
 $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Test rule to compile and link main_test.c with the object files
 test: CFLAGS += -DTEST
-test: $(BUILD_DIR)/main_test.o $(OBJS) | $(BUILD_DIR)
-	$(CC) -o $(BUILD_DIR)/main_test $(OBJS) $(BUILD_DIR)/main_test.o -lm -lblake3
+test: $(TEST_BIN)
 
-# Compile main_test.c to object file in the build directory
-$(BUILD_DIR)/main_test.o: main_test.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c main_test.c -o $@
+$(TEST_BIN): $(OBJS) $(TEST_OBJ)
+	$(CC) -o $@ $(OBJS) $(TEST_OBJ) -lm -lblake3
 
-# Rule to build the miner target
-miner: CFLAGS += -DTEST -g
-miner: $(BUILD_DIR)/miner.o $(OBJS) | $(BUILD_DIR)
-	$(CC) -o $(BUILD_DIR)/miner $(OBJS) $(BUILD_DIR)/miner.o -lm -lblake3 -lgmp -ljson-c
+$(TEST_OBJ): $(TEST_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-# Compile miner.c to object file in the build directory
-$(BUILD_DIR)/miner.o: miner.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c miner.c -o $@
-	
-# Clean rule to remove generated files in the build directory
 clean:
 	rm -rf $(BUILD_DIR)
