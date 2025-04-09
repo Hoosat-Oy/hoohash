@@ -54,6 +54,64 @@ void show_fe_current_rounding_direction(void)
     printf("\n");
 }
 
+uint8_t *to_little_endian_uint8_t_pointer(const uint8_t *value, size_t size)
+{
+    // Allocate memory for the result
+    uint8_t *little_endian_value = (uint8_t *)malloc(size);
+    if (little_endian_value == NULL)
+    {
+        return NULL; // Memory allocation failed
+    }
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    // If the system is already little-endian, copy the value as is
+    memcpy(little_endian_value, value, size);
+#else
+    // If the system is big-endian, we need to reverse the byte order
+    for (size_t i = 0; i < size; i++)
+    {
+        little_endian_value[i] = value[size - 1 - i];
+    }
+#endif
+
+    return little_endian_value;
+}
+
+uint8_t *to_big_endian_uint8_t_pointer(const uint8_t *value, size_t size)
+{
+    // Allocate memory for the result
+    uint8_t *big_endian_value = (uint8_t *)malloc(size);
+    if (big_endian_value == NULL)
+    {
+        return NULL; // Memory allocation failed
+    }
+
+#if __BYTE_ORDER == __BIG_ENDIAN
+    // If the system is already big-endian, copy the value as is
+    memcpy(big_endian_value, value, size);
+#else
+    // If the system is little-endian, we need to reverse the byte order
+    for (size_t i = 0; i < size; i++)
+    {
+        big_endian_value[i] = value[size - 1 - i];
+    }
+#endif
+
+    return big_endian_value;
+}
+
+// Function to convert a byte array to BigInt
+BigInt toBig(uint8_t *hash, size_t hash_len)
+{
+    BigInt bigint;
+    BigInt_init(&bigint, hash_len);
+    printf("Before Big endian: %s\n", hash);
+    hash = to_big_endian_uint8_t_pointer(hash, hash_len);
+    printf("Big endian: %s\n", hash);
+    memcpy(bigint.digits, hash, hash_len);
+    return bigint;
+}
+
 char *encodeHex(const uint8_t *bytes, size_t length)
 {
     // Each byte is represented by 2 hex characters, plus 1 for the null terminator
@@ -110,7 +168,7 @@ void split_uint8_array_to_uint64(const uint8_t arr[32], uint64_t out[4])
     }
 }
 
-static inline xoshiro_state xoshiro_init(const uint8_t *bytes)
+xoshiro_state xoshiro_init(const uint8_t *bytes)
 {
     xoshiro_state state;
     // Copy the 32 bytes (256 bits) from hashArray into the state variables
@@ -121,12 +179,12 @@ static inline xoshiro_state xoshiro_init(const uint8_t *bytes)
     return state;
 }
 
-static inline uint64_t rotl64(const uint64_t x, int k)
+uint64_t rotl64(const uint64_t x, int k)
 {
     return (x << k) | (x >> (64 - k));
 }
 
-static inline uint64_t xoshiro_gen(xoshiro_state *x)
+uint64_t xoshiro_gen(xoshiro_state *x)
 {
     uint64_t res = rotl64(x->s0 + x->s3, 23) + x->s0;
     uint64_t t = x->s1 << 17;
@@ -143,12 +201,12 @@ static inline uint64_t xoshiro_gen(xoshiro_state *x)
 }
 
 // Complex nonlinear transformations
-float MediumComplexNonLinear(float x)
+double MediumComplexNonLinear(double x)
 {
     return exp(sin(x) + cos(x));
 }
 
-float IntermediateComplexNonLinear(float x)
+double IntermediateComplexNonLinear(double x)
 {
     if (x == PI / 2 || x == 3 * PI / 2)
     {
@@ -157,211 +215,200 @@ float IntermediateComplexNonLinear(float x)
     return sin(x) * cos(x) * tan(x);
 }
 
-float HighComplexNonLinear(float x)
+double HighComplexNonLinear(double x)
 {
-    return exp(x) * log(x + 1);
+    return 1.0 / sqrt(fabs(x) + 1);
 }
 
-float ComplexNonLinear(float x)
+#define COMPLEX_TRANSFORM_MULTIPLIER 0.000001
+
+double ComplexNonLinear(double x)
 {
-    float transformFactor = fmod(x, 4) / 4;
-    if (x < 1)
+    double transformFactorOne = fmod(x * COMPLEX_TRANSFORM_MULTIPLIER, 8) / 8;
+    double transformFactorTwo = fmod(x * COMPLEX_TRANSFORM_MULTIPLIER, 4) / 4;
+    // printf("%f\n", transformFactorOne);
+    // printf("%f\n", transformFactorTwo);
+    if (transformFactorOne < 0.33)
     {
-        if (transformFactor < 0.25)
+
+        if (transformFactorTwo < 0.25)
         {
-            return MediumComplexNonLinear(x + (1 + transformFactor));
+            return MediumComplexNonLinear(x + (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.5)
+        else if (transformFactorTwo < 0.5)
         {
-            return MediumComplexNonLinear(x - (1 + transformFactor));
+            return MediumComplexNonLinear(x - (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.75)
+        else if (transformFactorTwo < 0.75)
         {
-            return MediumComplexNonLinear(x * (1 + transformFactor));
+            return MediumComplexNonLinear(x * (1 + transformFactorTwo));
         }
         else
         {
-            return MediumComplexNonLinear(x / (1 + transformFactor));
+            return MediumComplexNonLinear(x / (1 + transformFactorTwo));
         }
     }
-    else if (x < 10)
+    else if (transformFactorOne < 0.66)
     {
-        if (transformFactor < 0.25)
+        if (transformFactorTwo < 0.25)
         {
-            return IntermediateComplexNonLinear(x + (1 + transformFactor));
+            return IntermediateComplexNonLinear(x + (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.5)
+        else if (transformFactorTwo < 0.5)
         {
-            return IntermediateComplexNonLinear(x - (1 + transformFactor));
+            return IntermediateComplexNonLinear(x - (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.75)
+        else if (transformFactorTwo < 0.75)
         {
-            return IntermediateComplexNonLinear(x * (1 + transformFactor));
+            return IntermediateComplexNonLinear(x * (1 + transformFactorTwo));
         }
         else
         {
-            return IntermediateComplexNonLinear(x / (1 + transformFactor));
+            return IntermediateComplexNonLinear(x / (1 + transformFactorTwo));
         }
     }
     else
     {
-        if (transformFactor < 0.25)
+        if (transformFactorTwo < 0.25)
         {
-            return HighComplexNonLinear(x + (1 + transformFactor));
+            return HighComplexNonLinear(x + (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.5)
+        else if (transformFactorTwo < 0.5)
         {
-            return HighComplexNonLinear(x - (1 + transformFactor));
+            return HighComplexNonLinear(x - (1 + transformFactorTwo));
         }
-        else if (transformFactor < 0.75)
+        else if (transformFactorTwo < 0.75)
         {
-            return HighComplexNonLinear(x * (1 + transformFactor));
+            return HighComplexNonLinear(x * (1 + transformFactorTwo));
         }
         else
         {
-            return HighComplexNonLinear(x / (1 + transformFactor));
+            return HighComplexNonLinear(x / (1 + transformFactorTwo));
         }
     }
 }
 
-int computeHoohashRank(uint16_t mat[64][64])
+// These matter to precision.
+#define COMPLEX_OUTPUT_CLAMP 1000000000
+#define PRODUCT_VALUE_SCALE_MULTIPLIER 0.1
+
+int complexRounds = 0;
+
+double ForComplex(double forComplex)
 {
-    float B[64][64];
-    for (int i = 0; i < 64; i++)
+    double complex;
+    double rounds = 1;
+    complex = ComplexNonLinear(forComplex);
+    while (isnan(complex) || isinf(complex))
     {
-        for (int j = 0; j < 64; j++)
+        forComplex = forComplex * 0.1;
+        if (forComplex <= 0.0000000000001)
         {
-            B[i][j] = mat[i][j] + ComplexNonLinear(mat[i][j]);
+            return 0 * (double)rounds;
         }
+        rounds++;
+        printf("[forComplex] Input %0.64f, Output %0.12f\n", forComplex, complex);
     }
-    int rank = 0;
-    int rowSelected[64] = {0};
-    for (int i = 0; i < 64; i++)
-    {
-        int j;
-        for (j = 0; j < 64; j++)
-        {
-            if (!rowSelected[j] && fabs(B[j][i]) > EPS)
-            {
-                break;
-            }
-        }
-        if (j != 64)
-        {
-            rank++;
-            rowSelected[j] = 1;
-            for (int p = i + 1; p < 64; p++)
-            {
-                B[j][p] /= B[j][i];
-            }
-            for (int k = 0; k < 64; k++)
-            {
-                if (k != j && fabs(B[k][i]) > EPS)
-                {
-                    for (int p = i + 1; p < 64; p++)
-                    {
-                        B[k][p] -= B[j][p] * B[k][i];
-                    }
-                }
-            }
-        }
-    }
-    return rank;
+    return complex * (double)rounds;
 }
 
-void generateHoohashMatrix(uint8_t *hash, uint16_t mat[64][64])
+void generateHoohashMatrix(uint8_t *hash, double mat[64][64])
 {
     xoshiro_state state = xoshiro_init(hash);
-    // printf("state.s0 0x%016llX\n", state.s0);
-    // printf("state.s1 0x%016llX\n", state.s1);
-    // printf("state.s2 0x%016llX\n", state.s2);
-    // printf("state.s3 0x%016llX\n", state.s3);
-    for (;;)
-    {
-        for (int i = 0; i < 64; i++)
-        {
-            for (int j = 0; j < 64; j += 16)
-            {
-                uint64_t val = xoshiro_gen(&state);
-                for (int shift = 0; shift < 16; ++shift)
-                {
-                    mat[i][j + shift] = (val >> (4 * shift)) & 0x0F;
-                }
-            }
-        }
-        int rank = computeHoohashRank(mat);
-        // printf("%d\n", rank);
-        if (rank == 64)
-        {
-            return;
-        }
-    }
-}
-
-void HoohashMatrixMultiplication(uint16_t mat[64][64], const uint8_t *hashBytes, uint8_t *output)
-{
-    float vector[64] = {0};
-    float product[64] = {0};
-    uint8_t res[32] = {0};
-
-    // Populate the vector with floating-point values
-    for (int i = 0; i < 32; i++)
-    {
-        vector[2 * i] = (float)(hashBytes[i] >> 4);
-        vector[2 * i + 1] = (float)(hashBytes[i] & 0x0F);
-    }
-
-    // printf("Vector: ");
-    // for (int i = 0; i < 64; i++)
-    // {
-    //     printf("%f, ", vector[i]);
-    // }
-    // printf("\n");
-
-    // Matrix-vector multiplication with floating point operations
+    double normalize = 1000000.f;
     for (int i = 0; i < 64; i++)
     {
         for (int j = 0; j < 64; j++)
         {
-            float forComplex = (float)mat[i][j] * vector[j];
-            while (forComplex > 14)
-            {
-                forComplex = forComplex * 0.1;
-            }
-            // Transform Matrix values with complex non-linear equations and sum into product.
-            product[i] += ComplexNonLinear(forComplex);
+            uint64_t val = xoshiro_gen(&state);
+            uint32_t lower_4_bytes = val & 0xFFFFFFFF;
+            mat[i][j] = (double)lower_4_bytes / (double)UINT32_MAX * normalize;
         }
     }
-    // printf("Product: ");
-    // for (int i = 0; i < 64; i++)
-    // {
-    //     printf("%f ", product[i]);
-    // }
-    // printf("\n");
+}
 
-    // Convert product back to uint16 and then to byte array
-    // printf("Hi/Low: ");
+double TransformFactor(double x)
+{
+    const double granularity = 1024.0;
+    return fmod(x, granularity) / granularity;
+}
+
+void ConvertBytesToUint32Array(uint32_t *H, const uint8_t *bytes)
+{
+    for (int i = 0; i < 8; i++)
+    {
+        H[i] = ((uint32_t)bytes[i * 4] << 24) |
+               ((uint32_t)bytes[i * 4 + 1] << 16) |
+               ((uint32_t)bytes[i * 4 + 2] << 8) |
+               (uint32_t)bytes[i * 4 + 3];
+    }
+}
+
+void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce)
+{
+    uint8_t scaledValues[32] = {0};
+    uint8_t vector[64] = {0};
+    double product[64] = {0};
+    uint8_t result[32] = {0};
+    uint32_t H[8] = {0};
+    ConvertBytesToUint32Array(H, hashBytes);
+    double hashMod = (double)(H[0] ^ H[1] ^ H[2] ^ H[3] ^ H[4] ^ H[5] ^ H[6] ^ H[7]);
+    double nonceMod = (nonce & 0xFF);
+    double divider = 0.0001;
+    double multiplier = 1234;
+    double sw = 0.0;
+
     for (int i = 0; i < 32; i++)
     {
-        uint64_t high = product[2 * i] * 0.00000001;
-        uint64_t low = product[2 * i + 1] * 0.00000001;
-        // printf("%d - %d, ", high, low);
-        // Combine high and low into a single byte
-        uint8_t combined = (high ^ low) & 0xFF;
-        res[i] = hashBytes[i] ^ combined;
+        vector[2 * i] = hashBytes[i] >> 4;
+        vector[2 * i + 1] = hashBytes[i] & 0x0F;
+    }
+
+    for (int i = 0; i < 64; i++)
+    {
+        for (int j = 0; j < 64; j++)
+        {
+            if (sw <= 0.02)
+            {
+                double input = (mat[i][j] * hashMod * (double)vector[j] + nonceMod);
+                // printf("%f\n", input);
+                double output = ForComplex(input) * (double)vector[j] * multiplier;
+                product[i] += output;
+                // printf("[%d][%d]: %f %f %f %f %f %f\n", i, j, mat[i][j], (double)vector[j], hashMod, nonceMod, input, output);
+            }
+            else
+            {
+                double output = mat[i][j] * divider * (double)vector[j];
+                product[i] += output;
+                // printf("[%d][%d]: %f %f %f\n", i, j, mat[i][j], (double)vector[j], output);
+            }
+            sw = TransformFactor(product[i]);
+        }
     }
     // printf("\n");
-    // printf("Res: ");
-    // for (int i = 0; i < 32; i++)
-    // {
-    //     printf("%d,", res[i]);
-    // }
-    // printf("\n");
 
-    // Hash again using BLAKE3
+    // for (int i = 0; i < 64; i++)
+    // {
+    //     printf("[%d]: %f\n", i, product[i]);
+    // }
+
+    for (int i = 0; i < 64; i += 2)
+    {
+        uint64_t pval = (uint64_t)product[i] + (uint64_t)product[i + 1];
+        scaledValues[i / 2] = (uint8_t)(pval & 0xFF);
+        // printf("[%u] -> %f + %f -> %ld -> %u\n", i / 2, product[i], product[i + 1], pval, scaledValues[i / 2]);
+    }
+
+    // printf("Final pass: [");
+    for (int i = 0; i < 32; i++)
+    {
+        result[i] = hashBytes[i] ^ scaledValues[i];
+        // printf("%d, ", result[i]);
+    }
+    // printf("]\n");
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, res, DOMAIN_HASH_SIZE);
+    blake3_hasher_update(&hasher, result, DOMAIN_HASH_SIZE);
     blake3_hasher_finalize(&hasher, output, DOMAIN_HASH_SIZE);
 }
 
@@ -374,7 +421,7 @@ void CalculateProofOfWorkValue(State *state, uint8_t *result)
     uint8_t zeroes[DOMAIN_HASH_SIZE] = {0};
 
     blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, state->prePowHash, DOMAIN_HASH_SIZE);
+    blake3_hasher_update(&hasher, state->PrevHeader, DOMAIN_HASH_SIZE);
     // state->Timestamp = le64dec(state->Timestamp);
     blake3_hasher_update(&hasher, &state->Timestamp, sizeof(state->Timestamp));
     blake3_hasher_update(&hasher, zeroes, DOMAIN_HASH_SIZE);
@@ -384,7 +431,7 @@ void CalculateProofOfWorkValue(State *state, uint8_t *result)
     // printf("First pass: %s\n", encodeHex(firstPass, DOMAIN_HASH_SIZE));
 
     // Perform Hoohash matrix multiplication
-    HoohashMatrixMultiplication(state->mat, firstPass, lastPass);
+    HoohashMatrixMultiplication(state->mat, firstPass, lastPass, state->Nonce);
 
     // Copy lastPass to result if needed
     memcpy(result, lastPass, DOMAIN_HASH_SIZE);
