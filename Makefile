@@ -1,13 +1,14 @@
 # Compiler and flags
 CC = gcc
 CFLAGS = -fPIC -g -Wall -Wextra
-LDFLAGS = -shared
+# Remove -shared from LDFLAGS, it's for shared libs
+LDFLAGS =
 
 # Paths
 BUILD_DIR = build
 SRCS = hoohash.c bigint.c
 OBJS = $(SRCS:%.c=$(BUILD_DIR)/%.o)
-TARGET = $(BUILD_DIR)/lib-hoohash.so
+TARGET = $(BUILD_DIR)/lib-hoohash.a
 TEST_SRC = main_test.c
 TEST_OBJ = $(BUILD_DIR)/main_test.o
 TEST_BIN = $(BUILD_DIR)/hoohash_test
@@ -17,8 +18,9 @@ all: $(TARGET)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
+# Build static library
 $(TARGET): $(OBJS) | $(BUILD_DIR)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) -lm -lblake3
+	ar rcs $@ $(OBJS)
 
 $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -26,8 +28,8 @@ $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
 test: CFLAGS += -DTEST
 test: $(TEST_BIN)
 
-$(TEST_BIN): $(OBJS) $(TEST_OBJ)
-	$(CC) -o $@ $(OBJS) $(TEST_OBJ) -lm -lblake3
+$(TEST_BIN): $(OBJS) $(TEST_OBJ) | $(BUILD_DIR)
+	$(CC) -o $@ $(OBJS) $(TEST_OBJ) -lm -I../blake3/c ../blake3/c/build/libblake3.a
 
 $(TEST_OBJ): $(TEST_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
