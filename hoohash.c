@@ -292,8 +292,6 @@ double ComplexNonLinear(double x)
 #define COMPLEX_OUTPUT_CLAMP 1000000000
 #define PRODUCT_VALUE_SCALE_MULTIPLIER 0.1
 
-int complexRounds = 0;
-
 double ForComplex(double forComplex)
 {
     double complex;
@@ -343,6 +341,14 @@ void ConvertBytesToUint32Array(uint32_t *H, const uint8_t *bytes)
                (uint32_t)bytes[i * 4 + 3];
     }
 }
+void printHash(unsigned char *hash, size_t len)
+{
+    for (size_t i = 0; i < len; i++)
+    {
+        printf("%02x", hash[i]);
+    }
+    printf("\n");
+}
 
 void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, uint8_t *output, uint64_t nonce)
 {
@@ -353,7 +359,9 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
     uint32_t H[8] = {0};
     ConvertBytesToUint32Array(H, hashBytes);
     double hashMod = (double)(H[0] ^ H[1] ^ H[2] ^ H[3] ^ H[4] ^ H[5] ^ H[6] ^ H[7]);
+    // printf("Hashmod: %f\n", hashMod);
     double nonceMod = (nonce & 0xFF);
+    // printf("noncemod: %f\n", nonceMod);
     double divider = 0.0001;
     double multiplier = 1234;
     double sw = 0.0;
@@ -363,6 +371,8 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
         vector[2 * i] = hashBytes[i] >> 4;
         vector[2 * i + 1] = hashBytes[i] & 0x0F;
     }
+    // printf("Vector: ");
+    // printHash(vector, 64);
 
     for (int i = 0; i < 64; i++)
     {
@@ -371,8 +381,11 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
             if (sw <= 0.02)
             {
                 double input = (mat[i][j] * hashMod * (double)vector[j] + nonceMod);
-                // printf("%f\n", input);
+                // printf("ForComplex input [%d][%d] = %f, mat[i][j] = %f, hashmod = %f, "
+                //        "vector[j] = %d, nonceMod = %f\n",
+                //        i, j, input, mat[i][j], hashMod, vector[j], nonceMod);
                 double output = ForComplex(input) * (double)vector[j] * multiplier;
+                // printf("ForComplex at [%d][%d] = %f\n", i, j, output);
                 product[i] += output;
                 // printf("[%d][%d]: %f %f %f %f %f %f\n", i, j, mat[i][j], (double)vector[j], hashMod, nonceMod, input, output);
             }
@@ -387,10 +400,12 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
     }
     // printf("\n");
 
-    // for (int i = 0; i < 64; i++)
+    // printf("Product: ");
+    // for (int i = 0; i < 63; i++)
     // {
-    //     printf("[%d]: %f\n", i, product[i]);
+    //     printf("%f, ", product[i]);
     // }
+    // printf("%f\n", product[64]);
 
     for (int i = 0; i < 64; i += 2)
     {
@@ -414,7 +429,7 @@ void HoohashMatrixMultiplication(double mat[64][64], const uint8_t *hashBytes, u
 
 void CalculateProofOfWorkValue(State *state, uint8_t *result)
 {
-    // PRE_POW_HASH || LE_TIME || 32 zero byte padding || LE_NONCE
+
     blake3_hasher hasher;
     uint8_t firstPass[DOMAIN_HASH_SIZE];
     uint8_t lastPass[DOMAIN_HASH_SIZE];

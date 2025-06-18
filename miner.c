@@ -199,51 +199,6 @@ uint8_t *target_from_pool_difficulty(double difficulty)
     return target_bytes;
 }
 
-int compare_target(uint8_t *hash, uint8_t *target)
-{
-    if (target == NULL)
-    {
-        printf("Error: target is NULL\n");
-        return 2;
-    }
-
-    uint8_t reversed_hash[DOMAIN_HASH_SIZE];
-    uint8_t reversed_target[DOMAIN_HASH_SIZE];
-
-    for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
-    {
-        reversed_target[i] = target[DOMAIN_HASH_SIZE - 1 - i];
-    }
-
-    int result = 0;
-    for (int i = DOMAIN_HASH_SIZE - 1; i >= 0; i--)
-    {
-        if (hash[i] < reversed_target[i])
-        {
-            result = -1;
-            break;
-        }
-        else if (hash[i] > reversed_target[i])
-        {
-            result = 1;
-            break;
-        }
-    }
-    // printf("hash (LE):\t0x");
-    // for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
-    // {
-    //     printf("%02x", hash[i]);
-    // }
-    // printf("\n");
-    // printf("target (LE):\t0x");
-    // for (int i = 0; i < DOMAIN_HASH_SIZE; i++)
-    // {
-    //     printf("%02x", reversed_target[i]);
-    // }
-    // printf("\n");
-    return result;
-}
-
 uint8_t *target;
 
 void smallJobHeader(const uint64_t *ids, uint8_t *headerData)
@@ -367,13 +322,13 @@ void *mining_thread_function(void *arg)
     memcpy(&job_copy, (MiningJob *)arg, sizeof(MiningJob));
 
     State state = {0};
-    memcpy(state.prePowHash, job_copy.header, DOMAIN_HASH_SIZE);
+    memcpy(state.PrevHeader, job_copy.header, DOMAIN_HASH_SIZE);
     state.Timestamp = (uint64_t)job_copy.timestamp;
 
     uint64_t nonce = job_copy.indice; // Start nonce unique to the thread
     uint64_t step = threads;          // Increment step equal to the total number of threads
 
-    generateHoohashMatrix(state.prePowHash, state.mat);
+    generateHoohashMatrix(state.PrevHeader, state.mat);
 
     while (job_copy.running)
     {
