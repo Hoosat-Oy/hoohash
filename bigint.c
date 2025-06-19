@@ -46,18 +46,6 @@ void BigInt_free(BigInt *bigint)
     bigint->size = 0;
 }
 
-// Function to reverse a byte array
-static void reverse_bytes(unsigned char *array, size_t length)
-{
-    size_t i;
-    for (i = 0; i < length / 2; i++)
-    {
-        unsigned char temp = array[i];
-        array[i] = array[length - 1 - i];
-        array[length - 1 - i] = temp;
-    }
-}
-
 // Function to print a BigInt
 void BigInt_print(const BigInt *bigint)
 {
