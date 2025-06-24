@@ -1,6 +1,6 @@
 # Compiler and flags
-CC = gcc
-CFLAGS = -fPIC -g -Wall -Wextra
+CC = nvcc
+CFLAGS = -Xcompiler -fPIC -g 
 # Remove -shared from LDFLAGS, it's for shared libs
 LDFLAGS =
 
