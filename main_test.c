@@ -78,7 +78,7 @@ void runTestData()
         printf("Input PrevHeader: %s\n", encodeHex(PrevHeader, DOMAIN_HASH_SIZE));
         memcpy(state.PrevHeader, PrevHeader, DOMAIN_HASH_SIZE);
         state.Timestamp = 1725374568455;
-        state.Nonce = 16957671692455988494UL;
+        state.Nonce = 7598630810654817703UL;
         printf("Input Timestamp: %ld\n", state.Timestamp);
         printf("Input Nonce: %lu\n", state.Nonce);
         generateHoohashMatrix(PrevHeader, state.mat);
