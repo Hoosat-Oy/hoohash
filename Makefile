@@ -1,10 +1,31 @@
-# Compiler and flags
-# Use gcc for C files, nvcc only when needed for CUDA
-CC = gcc
-NVCC = nvcc
-CFLAGS = -fPIC -g -Wall -Wextra -lm -std=c99 -D_GNU_SOURCE
-NVCC_FLAGS = -Xcompiler "$(CFLAGS)" -Wno-deprecated-gpu-targets
-LDFLAGS = 
+# Compiler and flags - NVCC with MSVC-like optimizations (FP64 precision preserved)
+CC = nvcc
+
+# Precision-safe optimizations (no fast-math)
+OPT_CFLAGS = -O3 -march=native -mtune=native -funroll-loops \
+             -finline-functions -fomit-frame-pointer \
+             -fstrict-aliasing -fprefetch-loop-arrays -ftree-vectorize \
+             -fno-semantic-interposition -fno-stack-check -fno-stack-protector -fno-fast-math
+
+DEBUG_CFLAGS = -g -O0 -Wall -Wextra
+RELEASE_CFLAGS = $(OPT_CFLAGS) -DNDEBUG -fPIC
+HOST_CFLAGS = $(RELEASE_CFLAGS) -std=c99 -D_GNU_SOURCE -lm
+
+# NVCC flags - precision-safe, no fast-math
+NVCC_FLAGS = -Xcompiler "$(HOST_CFLAGS)" \
+             --maxrregcount=64 \
+             -Wno-deprecated-gpu-targets \
+             --prec-div=false --prec-sqrt=false  # Only these precision flags for speed
+
+# NVCC linker flags
+LDFLAGS = -Xcompiler "-lm -fuse-ld=mold"
+
+# Build mode
+MODE ?= release
+ifeq ($(MODE),debug)
+    NVCC_FLAGS := -Xcompiler "$(DEBUG_CFLAGS) -fPIC -std=c99 -D_GNU_SOURCE" -g -G
+    LDFLAGS := -Xcompiler "-lm"
+endif
 
 # Paths
 BUILD_DIR = build
@@ -22,31 +43,30 @@ $(BUILD_DIR):
 
 # Build static library
 $(TARGET): $(OBJS) | $(BUILD_DIR)
+	@echo "AR    $(TARGET)"
 	ar rcs $@ $(OBJS)
 
-# Compile C files with gcc
+# Compile C files with NVCC (precision-safe optimized)
 $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Special rule for hoohash.c if you need CUDA version
-$(BUILD_DIR)/hoohash_cuda.o: hoohash.c | $(BUILD_DIR)
-	$(NVCC) $(NVCC_FLAGS) -c $< -o $@
+	@echo "NVCC  $<"
+	$(CC) $(NVCC_FLAGS) -c $< -o $@
 
 # Test target
-test: CFLAGS += -DTEST
+test: NVCC_FLAGS += -Xcompiler "-DTEST"
 test: $(TEST_BIN)
 
 $(TEST_BIN): $(OBJS) $(TEST_OBJ) | $(BUILD_DIR)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(TEST_OBJ) -lm -I../blake3/c ../blake3/c/build/libblake3.a
+	@echo "LINK  $(TEST_BIN)"
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(TEST_OBJ) \
+		-Xcompiler "-I../blake3/c" \
+		../blake3/c/build/libblake3.a
 
 $(TEST_OBJ): $(TEST_SRC) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	@echo "NVCC  $(TEST_SRC)"
+	$(CC) $(NVCC_FLAGS) -c $< -o $@
 
-# CUDA-enabled library (if needed)
-cuda_lib: OBJS = $(BUILD_DIR)/hoohash_cuda.o $(BUILD_DIR)/bigint.o
-cuda_lib: $(TARGET)
-
+# Clean
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) gmon.out *.gcda *.gcno *.profraw
 
-.PHONY: all test clean cuda_lib
+.PHONY: all test clean 

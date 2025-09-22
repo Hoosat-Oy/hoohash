@@ -202,13 +202,7 @@ uint64_t xoshiro_gen(xoshiro_state *x)
 // Complex nonlinear transformations
 double MediumComplexNonLinear(double x)
 {
-#ifdef __GNUC__
-    double s, c;
-    sincos(x, &s, &c);
-    return exp(s + c);
-#else
     return exp(sin(x) + cos(x));
-#endif
 }
 
 double IntermediateComplexNonLinear(double x)
