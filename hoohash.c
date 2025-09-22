@@ -22,7 +22,6 @@
 
 #include <fenv.h>
 #include <stdint.h>
-#include <endian.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -203,7 +202,13 @@ uint64_t xoshiro_gen(xoshiro_state *x)
 // Complex nonlinear transformations
 double MediumComplexNonLinear(double x)
 {
+#ifdef __GNUC__
+    double s, c;
+    sincos(x, &s, &c);
+    return exp(s + c);
+#else
     return exp(sin(x) + cos(x));
+#endif
 }
 
 double IntermediateComplexNonLinear(double x)
@@ -212,7 +217,7 @@ double IntermediateComplexNonLinear(double x)
     {
         return 0; // Avoid singularity
     }
-    return sin(x) * cos(x) * tan(x);
+    return sin(x) * sin(x);
 }
 
 double HighComplexNonLinear(double x)
@@ -224,8 +229,8 @@ double HighComplexNonLinear(double x)
 
 double ComplexNonLinear(double x)
 {
-    double transformFactorOne = fmod(x * COMPLEX_TRANSFORM_MULTIPLIER, 8) / 8;
-    double transformFactorTwo = fmod(x * COMPLEX_TRANSFORM_MULTIPLIER, 4) / 4;
+    double transformFactorOne = (x * COMPLEX_TRANSFORM_MULTIPLIER) / 8.0 - floor((x * COMPLEX_TRANSFORM_MULTIPLIER) / 8.0);
+    double transformFactorTwo = (x * COMPLEX_TRANSFORM_MULTIPLIER) / 4.0 - floor((x * COMPLEX_TRANSFORM_MULTIPLIER) / 4.0);
     // printf("%f\n", transformFactorOne);
     // printf("%f\n", transformFactorTwo);
     if (transformFactorOne < 0.33)
@@ -328,7 +333,7 @@ void generateHoohashMatrix(uint8_t *hash, double mat[64][64])
 double TransformFactor(double x)
 {
     const double granularity = 1024.0;
-    return fmod(x, granularity) / granularity;
+    return x / granularity - floor(x / granularity);
 }
 
 void ConvertBytesToUint32Array(uint32_t *H, const uint8_t *bytes)
