@@ -1,8 +1,8 @@
 # Compiler and flags
 CC = nvcc
-CFLAGS = -Xcompiler -fPIC -g -Wall -Wextra -lm -02
+CFLAGS = -Xcompiler -fPIC -g
 # Remove -shared from LDFLAGS, it's for shared libs
-LDFLAGS =
+LDFLAGS = -lm 
 
 # Paths
 BUILD_DIR = build
