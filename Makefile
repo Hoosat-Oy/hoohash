@@ -2,10 +2,7 @@
 CC = nvcc
 
 # Precision-safe optimizations (no fast-math)
-OPT_CFLAGS = -O2 -march=native -mtune=native -funroll-loops \
-             -finline-functions -fomit-frame-pointer \
-             -fstrict-aliasing -fprefetch-loop-arrays -ftree-vectorize \
-             -fno-semantic-interposition -fno-stack-check -fno-stack-protector -fno-fast-math
+OPT_CFLAGS = -O2 -fno-fast-math
 
 DEBUG_CFLAGS = -g -O0 -Wall -Wextra
 RELEASE_CFLAGS = $(OPT_CFLAGS) -DNDEBUG -fPIC
