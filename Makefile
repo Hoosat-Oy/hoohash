@@ -1,28 +1,8 @@
-# Compiler and flags - NVCC with MSVC-like optimizations (FP64 precision preserved)
+# Compiler and flags
 CC = nvcc
-
-# Precision-safe optimizations (no fast-math)
-OPT_CFLAGS = -O2
-
-DEBUG_CFLAGS = -g -O0 -Wall -Wextra
-RELEASE_CFLAGS = $(OPT_CFLAGS) -DNDEBUG -fPIC
-HOST_CFLAGS = $(RELEASE_CFLAGS) -std=c99 -D_GNU_SOURCE -lm
-
-# NVCC flags - precision-safe, no fast-math
-NVCC_FLAGS = -Xcompiler "$(HOST_CFLAGS)" \
-             --maxrregcount=64 \
-             -Wno-deprecated-gpu-targets \
-             --prec-div=false --prec-sqrt=false  # Only these precision flags for speed
-
-# NVCC linker flags
-LDFLAGS = -Xcompiler "-lm -fuse-ld=mold"
-
-# Build mode
-MODE ?= release
-ifeq ($(MODE),debug)
-    NVCC_FLAGS := -Xcompiler "$(DEBUG_CFLAGS) -fPIC -std=c99 -D_GNU_SOURCE" -g -G
-    LDFLAGS := -Xcompiler "-lm"
-endif
+CFLAGS = -Xcompiler -fPIC -g -Wall -Wextra -lm -02
+# Remove -shared from LDFLAGS, it's for shared libs
+LDFLAGS =
 
 # Paths
 BUILD_DIR = build
@@ -40,30 +20,19 @@ $(BUILD_DIR):
 
 # Build static library
 $(TARGET): $(OBJS) | $(BUILD_DIR)
-	@echo "AR    $(TARGET)"
 	ar rcs $@ $(OBJS)
 
-# Compile C files with NVCC (precision-safe optimized)
 $(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
-	@echo "NVCC  $<"
-	$(CC) $(NVCC_FLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
-# Test target
-test: NVCC_FLAGS += -Xcompiler "-DTEST"
+test: CFLAGS += -DTEST
 test: $(TEST_BIN)
 
 $(TEST_BIN): $(OBJS) $(TEST_OBJ) | $(BUILD_DIR)
-	@echo "LINK  $(TEST_BIN)"
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(TEST_OBJ) \
-		-Xcompiler "-I../blake3/c" \
-		../blake3/c/build/libblake3.a
+	$(CC) -o $@ $(OBJS) $(TEST_OBJ) -lm -I../blake3/c ../blake3/c/build/libblake3.a
 
 $(TEST_OBJ): $(TEST_SRC) | $(BUILD_DIR)
-	@echo "NVCC  $(TEST_SRC)"
-	$(CC) $(NVCC_FLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
-# Clean
 clean:
-	rm -rf $(BUILD_DIR) gmon.out *.gcda *.gcno *.profraw
-
-.PHONY: all test clean 
+	rm -rf $(BUILD_DIR)
