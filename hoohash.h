@@ -25,7 +25,9 @@
 
 #include <fenv.h>
 #include <stdint.h>
+#ifndef _WIN32
 #include <endian.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
